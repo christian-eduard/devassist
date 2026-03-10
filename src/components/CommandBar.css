@@ -1,0 +1,228 @@
+/* ── CommandBar: Barra de Comando Global VECTRON ── */
+
+.command-bar {
+    position: fixed;
+    bottom: 0;
+    left: 70px;
+    /* Sidebar width */
+    right: 0;
+    z-index: 900;
+    background: rgba(15, 15, 20, 0.95);
+    backdrop-filter: blur(20px);
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+    padding: 8px 16px;
+    transition: all 0.3s ease;
+}
+
+.command-bar.listening {
+    border-top-color: rgba(0, 200, 255, 0.4);
+    box-shadow: 0 -2px 20px rgba(0, 200, 255, 0.1);
+}
+
+.command-bar.thinking {
+    border-top-color: rgba(255, 180, 0, 0.4);
+    box-shadow: 0 -2px 20px rgba(255, 180, 0, 0.1);
+}
+
+.command-bar.speaking {
+    border-top-color: rgba(0, 255, 120, 0.4);
+    box-shadow: 0 -2px 20px rgba(0, 255, 120, 0.1);
+}
+
+.command-status-indicator {
+    position: absolute;
+    top: -1px;
+    left: 0;
+    height: 2px;
+    background: transparent;
+    transition: all 0.5s ease;
+}
+
+.command-status-indicator.listening {
+    width: 100%;
+    background: linear-gradient(90deg, transparent, rgba(0, 200, 255, 0.8), transparent);
+    animation: scan-line 2s linear infinite;
+}
+
+.command-status-indicator.thinking {
+    width: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255, 180, 0, 0.8), transparent);
+    animation: scan-line 1.2s linear infinite;
+}
+
+.command-status-indicator.speaking {
+    width: 100%;
+    background: linear-gradient(90deg, transparent, rgba(0, 255, 120, 0.8), transparent);
+    animation: pulse-glow 1.5s ease infinite;
+}
+
+@keyframes scan-line {
+    0% {
+        transform: translateX(-100%);
+    }
+
+    100% {
+        transform: translateX(100%);
+    }
+}
+
+@keyframes pulse-glow {
+
+    0%,
+    100% {
+        opacity: 0.3;
+    }
+
+    50% {
+        opacity: 1;
+    }
+}
+
+.command-form {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    max-width: 100%;
+}
+
+.command-input {
+    flex: 1;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 8px;
+    padding: 10px 14px;
+    color: #e0e0e0;
+    font-size: 13px;
+    font-family: 'Inter', 'SF Pro Text', -apple-system, sans-serif;
+    outline: none;
+    transition: all 0.2s ease;
+}
+
+.command-input:focus {
+    border-color: rgba(0, 200, 255, 0.3);
+    background: rgba(255, 255, 255, 0.06);
+    box-shadow: 0 0 0 2px rgba(0, 200, 255, 0.08);
+}
+
+.command-input::placeholder {
+    color: rgba(255, 255, 255, 0.25);
+    font-style: italic;
+}
+
+.command-input:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.command-actions {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.cmd-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    border: none;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.05);
+    color: rgba(255, 255, 255, 0.5);
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.cmd-btn:hover:not(:disabled) {
+    background: rgba(255, 255, 255, 0.1);
+    color: #fff;
+}
+
+.cmd-btn:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+}
+
+.mic-btn.active {
+    background: rgba(0, 200, 255, 0.2);
+    color: #00c8ff;
+    animation: mic-pulse 1.5s ease infinite;
+}
+
+@keyframes mic-pulse {
+
+    0%,
+    100% {
+        box-shadow: 0 0 0 0 rgba(0, 200, 255, 0.3);
+    }
+
+    50% {
+        box-shadow: 0 0 0 6px rgba(0, 200, 255, 0);
+    }
+}
+
+.send-btn:not(:disabled) {
+    background: rgba(0, 200, 255, 0.15);
+    color: #00c8ff;
+}
+
+.send-btn:not(:disabled):hover {
+    background: rgba(0, 200, 255, 0.25);
+}
+
+.loading-btn {
+    color: rgba(255, 180, 0, 0.8);
+    cursor: default;
+}
+
+.speaking-btn {
+    color: rgba(0, 255, 120, 0.8);
+    cursor: default;
+    animation: pulse-glow 1.5s ease infinite;
+}
+
+.spin {
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    from {
+        transform: rotate(0deg);
+    }
+
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* ── Ajuste del main-content para no quedar detrás del command-bar ── */
+.app-layout .main-content {
+    padding-bottom: 60px;
+}
+
+/* ── Light Mode ── */
+.light-mode .command-bar {
+    background: rgba(250, 250, 252, 0.95);
+    border-top-color: rgba(0, 0, 0, 0.08);
+}
+
+.light-mode .command-input {
+    background: rgba(0, 0, 0, 0.03);
+    border-color: rgba(0, 0, 0, 0.1);
+    color: #222;
+}
+
+.light-mode .command-input::placeholder {
+    color: rgba(0, 0, 0, 0.3);
+}
+
+.light-mode .cmd-btn {
+    background: rgba(0, 0, 0, 0.04);
+    color: rgba(0, 0, 0, 0.4);
+}
+
+.light-mode .cmd-btn:hover:not(:disabled) {
+    background: rgba(0, 0, 0, 0.08);
+    color: #222;
+}

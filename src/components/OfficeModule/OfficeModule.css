@@ -1,0 +1,6 @@
+/* OfficeModule.css — Styles are now mostly handled via inline styles and internal style tags in index.js for maximum portability */
+
+canvas {
+    display: block;
+    image-rendering: pixelated;
+}
