@@ -73,7 +73,9 @@ module.exports = function registerClawbotHandlers(ipcMain, mainWindow, DATA_DIR,
 
     ipcMain.handle('clawbot:get-system-status', async () => {
         const status = {
-            whatsapp: 'checking'
+            whatsapp: 'checking',
+            gateway: 'offline',
+            ai: 'online'
         };
 
         try {
@@ -90,6 +92,7 @@ module.exports = function registerClawbotHandlers(ipcMain, mainWindow, DATA_DIR,
             const waRes = await checkWA();
             status.whatsapp = waRes;
             status.status = waRes;
+            status.gateway = waRes === 'connected' ? 'online' : 'offline';
             status.message = waRes === 'connected' ? 'Conectado via OpenClaw' : 'Desconectado';
         } catch (e) {
             logger.error('Status check general error:', e.message);

@@ -169,9 +169,7 @@ function startWebhookServer(config, mainWindow) {
                     ok: true, 
                     response: "Procesando el enlace multimedia, Señor. Generando ficha técnica...",
                     text: "Procesando el enlace multimedia, Señor. Generando ficha técnica...",
-                    reply: "Procesando el enlace multimedia, Señor. Generando ficha técnica...",
-                    audio: false,
-                    voice: false
+                    reply: "Procesando el enlace multimedia, Señor. Generando ficha técnica..."
                 });
             }
         }
@@ -223,9 +221,7 @@ function startWebhookServer(config, mainWindow) {
                         ok: true, 
                         response: response, 
                         text: response, 
-                        reply: response,
-                        audio: false,
-                        voice: false
+                        reply: response
                     });
                 })
                 .catch(err => {
@@ -238,9 +234,7 @@ function startWebhookServer(config, mainWindow) {
             ok: true, 
             response: "Petición recibida, Señor. Procesando...",
             text: "Petición recibida, Señor. Procesando...",
-            reply: "Petición recibida, Señor. Procesando...",
-            audio: false,
-            voice: false
+            reply: "Petición recibida, Señor. Procesando..."
         });
     });
 
