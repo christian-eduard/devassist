@@ -70,7 +70,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
     fetchOpenRouterModels: () => ipcRenderer.invoke('ai:fetch-openrouter-models'),
     saveProvider: (provider) => ipcRenderer.invoke('ai:save-provider', provider),
     updateAssignment: (fnName, assignment) => ipcRenderer.invoke('ai:update-assignment', fnName, assignment),
-    transcribeAudio: (audioBuffer) => ipcRenderer.invoke('ai:transcribe-audio', audioBuffer),
+    transcribeAudio: (buffer) => ipcRenderer.invoke('ai:transcribe-audio', buffer),
+    analyzeVision: (imageB64, prompt) => ipcRenderer.invoke('ai:analyze-vision', imageB64, prompt),
+    liveChat: (bufferB64) => ipcRenderer.invoke('ai:live-chat', bufferB64)
   },
 
   // ── Clawbot ──
@@ -93,6 +95,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     deleteSkill: (name) => ipcRenderer.invoke('clawbot:delete-skill', name),
     getLogs: () => ipcRenderer.invoke('clawbot:get-logs'),
     getSystemStatus: () => ipcRenderer.invoke('clawbot:get-system-status'),
+    restartVoice: () => ipcRenderer.invoke('clawbot:restart-voice'),
     sendCommand: (text) => ipcRenderer.invoke('clawbot:send-command', text),
 
     // Event listeners
@@ -156,11 +159,35 @@ contextBridge.exposeInMainWorld('electronAPI', {
       ipcRenderer.on('clawbot:error', handler);
       return () => ipcRenderer.removeListener('clawbot:error', handler);
     },
+    onResponseChunk: (callback) => {
+      const handler = (_event, data) => callback(data);
+      ipcRenderer.on('clawbot:response-chunk', handler);
+      return () => ipcRenderer.removeListener('clawbot:response-chunk', handler);
+    },
   },
 
   // ── Notifications ──
   notifications: {
-    load: () => ipcRenderer.invoke('notifications:load'),
     save: (notifications) => ipcRenderer.invoke('notifications:save', notifications),
+  },
+
+  // ── Vision (V5.0) ──
+  vision: {
+    capture: () => ipcRenderer.invoke('vision:capture'),
+  },
+
+  // ── FS ──
+  fs: {
+    readFile: (path) => ipcRenderer.invoke('fs:readFile', path),
+    writeFile: (path, content) => ipcRenderer.invoke('fs:writeFile', path, content),
+  },
+
+  // ── Agents ──
+  agents: {
+    getAll: () => ipcRenderer.invoke('agents:get-all'),
+    toggle: (agentId) => ipcRenderer.invoke('agents:toggle', agentId),
+    updateConfig: (agentId, config) => ipcRenderer.invoke('agents:update-config', { agentId, config }),
+    getLogs: (agentId) => ipcRenderer.invoke('agents:get-logs', agentId),
+    restart: (agentId) => ipcRenderer.invoke('agents:restart', agentId),
   },
 });

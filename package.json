@@ -5,24 +5,25 @@
   "main": "electron/main.js",
   "homepage": "./",
   "scripts": {
-    "start": "concurrently \"PORT=3123 BROWSER=none react-scripts start\" \"wait-on http://localhost:3123 && NODE_ENV=development electron .\"",
+    "start": "concurrently \"PORT=3123 BROWSER=none react-scripts start\" \"wait-on http://localhost:3123 && NODE_ENV=development ELECTRON_RUN_AS_NODE= electron .\"",
     "react-build": "react-scripts build",
+    "test": "react-scripts test --watchAll=false",
     "build": "npm run react-build && electron-builder",
     "postinstall": "electron-builder install-app-deps"
   },
   "dependencies": {
     "@google-cloud/vertexai": "^1.1.0",
+    "@google/genai": "^1.44.0",
     "@google/generative-ai": "^0.24.1",
     "chokidar": "^3.5.3",
+    "dotenv": "^17.3.1",
     "express": "^4.18.2",
     "lucide-react": "^0.577.0",
     "node-telegram-bot-api": "^0.67.0",
     "openai": "^4.28.0",
-    "qrcode": "^1.5.4",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
-    "react-scripts": "5.0.1",
-    "whatsapp-web.js": "^1.34.6"
+    "react-scripts": "5.0.1"
   },
   "devDependencies": {
     "concurrently": "^8.2.0",
@@ -49,7 +50,7 @@
       "target": [
         "dmg"
       ],
-      "extendedInfo": {
+      "extendInfo": {
         "NSUserNotificationAlertStyle": "alert"
       }
     },

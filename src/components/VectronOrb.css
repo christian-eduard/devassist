@@ -1,0 +1,236 @@
+/* src/components/VectronOrb.css */
+.vectron-orb-container {
+    width: 220px;
+    height: 220px;
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 20px auto;
+}
+
+.orb-base {
+    width: 140px;
+    height: 140px;
+    border-radius: 50%;
+    background: radial-gradient(circle at 30% 30%, rgba(139, 92, 246, 0.4), rgba(30, 27, 75, 0.1));
+    box-shadow:
+        inset 0 0 50px rgba(0, 0, 0, 0.8),
+        0 0 30px rgba(139, 92, 246, 0.2);
+    position: relative;
+    transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+    overflow: hidden;
+    backdrop-filter: blur(5px);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+/* Neural Ring */
+.orb-ring {
+    position: absolute;
+    top: -10px;
+    left: -10px;
+    right: -10px;
+    bottom: -10px;
+    border: 2px solid rgba(139, 92, 246, 0.1);
+    border-radius: 50%;
+    animation: rotate 10s linear infinite;
+}
+
+@keyframes rotate {
+    from {
+        transform: rotate(0deg);
+    }
+
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* Inner Glow */
+.orb-core {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 40px;
+    height: 40px;
+    background: #8b5cf6;
+    border-radius: 50%;
+    filter: blur(20px);
+    opacity: 0.5;
+    transition: all 0.5s ease;
+}
+
+/* States */
+.vectron-orb-container.listening .orb-base {
+    box-shadow: 0 0 60px rgba(74, 247, 255, 0.4);
+    border-color: rgba(74, 247, 255, 0.3);
+    transform: scale(1.05);
+}
+
+.vectron-orb-container.listening .orb-core {
+    background: #4af7ff;
+    width: 80px;
+    height: 80px;
+    animation: pulse-neutral 1.5s ease-in-out infinite;
+}
+
+.vectron-orb-container.thinking .orb-base {
+    animation: neural-pulse 2s ease-in-out infinite;
+}
+
+.vectron-orb-container.thinking .orb-core {
+    background: #b84bff;
+    width: 60px;
+    height: 60px;
+    filter: blur(30px);
+}
+
+.vectron-orb-container.speaking .orb-base {
+    border-color: rgba(139, 92, 246, 0.5);
+}
+
+.vectron-orb-container.speaking .orb-core {
+    background: #fff;
+    width: 90px;
+    height: 90px;
+    animation: speak-vibration 0.3s ease-in-out infinite alternate;
+}
+
+@keyframes pulse-neutral {
+
+    0%,
+    100% {
+        transform: translate(-50%, -50%) scale(1);
+        opacity: 0.4;
+    }
+
+    50% {
+        transform: translate(-50%, -50%) scale(1.2);
+        opacity: 0.7;
+    }
+}
+
+@keyframes neural-pulse {
+    0% {
+        box-shadow: 0 0 20px rgba(184, 75, 255, 0.2);
+    }
+
+    50% {
+        box-shadow: 0 0 50px rgba(184, 75, 255, 0.5);
+    }
+
+    100% {
+        box-shadow: 0 0 20px rgba(184, 75, 255, 0.2);
+    }
+}
+
+@keyframes speak-vibration {
+    from {
+        transform: translate(-50%, -50%) scale(1);
+        opacity: 0.6;
+        filter: blur(20px);
+    }
+
+    to {
+        transform: translate(-50%, -50%) scale(1.1);
+        opacity: 0.8;
+        filter: blur(35px);
+    }
+}
+
+/* Sentiment States (v4.0) */
+.vectron-orb-container.sentiment-success .orb-base {
+    box-shadow: 0 0 70px rgba(16, 185, 129, 0.6);
+    border-color: rgba(16, 185, 129, 0.5);
+    animation: success-flash 0.8s ease-out;
+}
+
+.vectron-orb-container.sentiment-success .orb-core {
+    background: #10b981;
+    width: 100px;
+    height: 100px;
+}
+
+.vectron-orb-container.sentiment-fail .orb-base {
+    box-shadow: 0 0 70px rgba(239, 68, 68, 0.6);
+    border-color: rgba(239, 68, 68, 0.5);
+    animation: fail-pulse 1s infinite;
+}
+
+.vectron-orb-container.sentiment-fail .orb-core {
+    background: #ef4444;
+}
+
+@keyframes success-flash {
+    0% {
+        transform: scale(1);
+        opacity: 1;
+        filter: brightness(2);
+    }
+
+    100% {
+        transform: scale(1.1);
+        opacity: 1;
+        filter: brightness(1);
+    }
+}
+
+@keyframes fail-pulse {
+
+    0%,
+    100% {
+        transform: scale(1);
+        filter: brightness(1);
+    }
+
+    50% {
+        transform: scale(0.95);
+        filter: brightness(1.5);
+    }
+}
+
+.vectron-orb-container.sentiment-analyzing .orb-base {
+    box-shadow: 0 0 50px rgba(255, 255, 255, 0.4);
+    border-color: rgba(255, 255, 255, 0.5);
+    background: radial-gradient(circle at 30% 30%, rgba(200, 230, 255, 0.2), rgba(0, 0, 0, 0.3));
+}
+
+.vectron-orb-container.sentiment-analyzing .orb-core {
+    background: #fff;
+    width: 2px;
+    height: 140px;
+    border-radius: 0;
+    filter: blur(10px);
+    animation: scanner 2s linear infinite;
+}
+
+@keyframes scanner {
+    0% {
+        transform: translate(-70px, -50%);
+        opacity: 0;
+    }
+
+    10% {
+        opacity: 1;
+    }
+
+    90% {
+        opacity: 1;
+    }
+
+    100% {
+        transform: translate(70px, -50%);
+        opacity: 0;
+    }
+}
+
+/* Neural Particles Overlay */
+.orb-particles {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    background: url('https://www.transparenttextures.com/patterns/carbon-fibre.png');
+    opacity: 0.1;
+    mix-blend-mode: overlay;
+}

@@ -45,11 +45,13 @@ const ClawbotModule = ({ showToast, clawbotActive, setClawbotActive }) => {
         const sk = await window.electronAPI.clawbot.getSkills();
         setSkills(sk);
 
-        const wa = await window.electronAPI.clawbot.getWAStatus();
-        setWaStatus(wa);
+        const fullStatus = await window.electronAPI.clawbot.getSystemStatus();
+        setWaStatus(fullStatus);
     }, []);
 
     useEffect(() => {
+        if (!window.electronAPI) return;
+
         loadData();
 
         const unSubs = [
@@ -59,10 +61,12 @@ const ClawbotModule = ({ showToast, clawbotActive, setClawbotActive }) => {
 
         const interval = setInterval(async () => {
             if (window.electronAPI) {
-                const result = await window.electronAPI.clawbot.getWAStatus();
-                setWaStatus(result);
+                try {
+                    const result = await window.electronAPI.clawbot.getSystemStatus();
+                    setWaStatus(result);
+                } catch (e) { /* ignore polling errors */ }
             }
-        }, 15000);
+        }, 10000);
 
         return () => {
             unSubs.forEach(fn => fn());

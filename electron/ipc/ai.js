@@ -193,41 +193,55 @@ module.exports = function registerAIHandlers(ipcMain, dataDir) {
         }
     });
 
-    ipcMain.handle('ai:synthesize-speech', async (_event, text, voiceId = 'LlZr3QuzbW4WrPjgATHG') => {
+    ipcMain.handle('ai:synthesize-speech', async (_event, text, options = {}) => {
+        const { provider = 'elevenlabs' } = options;
+
         try {
             const config = loadConfig(dataDir);
-            const apiKey = config.apiKeys?.elevenlabs;
-            if (!apiKey) return { ok: false, error: 'API Key de ElevenLabs no configurada.' };
 
-            const response = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`, {
-                method: 'POST',
-                headers: {
-                    'xi-api-key': apiKey,
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    text,
-                    model_id: 'eleven_multilingual_v2',
-                    voice_settings: {
-                        stability: 0.5,
-                        similarity_boost: 0.75
-                    }
-                })
-            });
+            if (provider === 'elevenlabs') {
+                const apiKey = config.apiKeys?.elevenlabs;
+                if (!apiKey) return { ok: false, error: 'API Key de ElevenLabs no configurada.' };
 
-            if (!response.ok) {
-                const errData = await response.json();
-                return { ok: false, error: errData.detail?.status || 'Error en síntesis' };
+                // Voice ID: opciones del caller > config de DevAssist > default ElevenLabs
+                const voiceId = options.voiceId
+                    || config.clawbot?.elevenlabs?.voiceId
+                    || 'LlZr3QuzbW4WrPjgATHG';
+
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 6000);
+
+                const response = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`, {
+                    method: 'POST',
+                    headers: {
+                        'xi-api-key': apiKey,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        text,
+                        model_id: 'eleven_multilingual_v2',
+                        voice_settings: { stability: 0.5, similarity_boost: 0.75 }
+                    }),
+                    signal: controller.signal
+                });
+
+                clearTimeout(timeoutId);
+                if (!response.ok) {
+                    const errData = await response.json();
+                    return { ok: false, error: errData.detail?.status || 'Error en ElevenLabs' };
+                }
+
+                const arrayBuffer = await response.arrayBuffer();
+                return { ok: true, audioBase64: Buffer.from(arrayBuffer).toString('base64') };
             }
 
-            const arrayBuffer = await response.arrayBuffer();
-            const buffer = Buffer.from(arrayBuffer);
-
-            return { ok: true, audioBase64: buffer.toString('base64') };
+            // Fallback a Gemini
+            return { ok: false, error: 'Proveedor TTS no soportado o en desarrollo.' };
         } catch (err) {
             return { ok: false, error: err.message };
         }
     });
+
 
     ipcMain.handle('ai:fetch-openrouter-models', async () => {
         try {
@@ -263,45 +277,54 @@ module.exports = function registerAIHandlers(ipcMain, dataDir) {
         return { ok: true };
     });
 
-    ipcMain.handle('ai:transcribe-audio', async (_event, audioBuffer) => {
+    ipcMain.handle('ai:live-chat', async (_event, audioBufferB64) => {
         try {
             const config = loadConfig(dataDir);
-            const apiKey = config.apiKeys?.openai;
-            if (!apiKey) {
-                console.error('[STT] Error: No se encontró API Key de OpenAI');
-                return { ok: false, error: 'API Key de OpenAI no configurada (necesaria para Whisper).' };
+            const apiKey = config.gemini?.apiKey;
+            if (!apiKey) return { ok: false, error: "No Gemini API Key" };
+
+            let systemInstruction = "Eres VECTRON, el asistente personal avanzado de Chris.";
+            try {
+                const soulText = fs.readFileSync(path.join(os.homedir(), '.openclaw/workspace/SOUL.md'), 'utf8');
+                systemInstruction = soulText;
+            } catch (e) {
+                // Not fatal
             }
 
-            console.log(`[STT] Recibido buffer de audio: ${audioBuffer.byteLength} bytes`);
+            const { GoogleGenAI } = require('@google/genai');
+            const ai = new GoogleGenAI({ apiKey });
 
-            const tempPath = path.join(dataDir, 'input_audio.webm');
-            fs.writeFileSync(tempPath, Buffer.from(audioBuffer));
-
-            console.log(`[STT] Enviando a Whisper API...`);
-
-            const FormData = require('form-data');
-            const form = new FormData();
-            form.append('file', fs.createReadStream(tempPath), 'audio.webm');
-            form.append('model', 'whisper-1');
-            form.append('language', 'es');
-
-            const response = await fetch('https://api.openai.com/v1/audio/transcriptions', {
-                method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${apiKey}`,
-                    ...form.getHeaders()
-                },
-                body: form
+            // Note: Currently @google/genai may use string "TEXT" instead of Modality.TEXT
+            const session = await ai.live.connect({
+                model: "gemini-3.1-pro-preview",
+                config: {
+                    responseModalities: ["TEXT"],
+                    systemInstruction: { parts: [{ text: systemInstruction }] }
+                }
             });
 
-            if (!response.ok) {
-                const errData = await response.json();
-                return { ok: false, error: errData.error?.message || 'Error en Whisper' };
-            }
+            await session.send({
+                realtimeInput: {
+                    mediaChunks: [{
+                        data: audioBufferB64,
+                        mimeType: "audio/pcm;rate=16000"
+                    }]
+                }
+            });
 
-            const data = await response.json();
-            return { ok: true, text: data.text };
+            let fullResponse = "";
+            for await (const message of session.receive()) {
+                if (message.text) fullResponse += message.text;
+                if (message.serverContent?.modelTurn?.parts) {
+                    for (const p of message.serverContent.modelTurn.parts) {
+                        if (p.text) fullResponse += p.text;
+                    }
+                }
+            }
+            // we probably only need one round for this prompt
+            return { ok: true, text: fullResponse };
         } catch (err) {
+            console.error(err);
             return { ok: false, error: err.message };
         }
     });

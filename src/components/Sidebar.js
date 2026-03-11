@@ -12,7 +12,7 @@ import {
     Bell
 } from 'lucide-react';
 import './Sidebar.css';
-import VoiceVisualizer from './VoiceVisualizer';
+import VectronOrb from './VectronOrb';
 
 const Sidebar = ({
     activeModule,
@@ -28,7 +28,9 @@ const Sidebar = ({
     onToggleListen,
     audioStream,
     notificationCount,
-    onToggleNC
+    onToggleNC,
+    sentiment,
+    children
 }) => {
     const items = [
         { id: 'projects', label: 'Proyectos', icon: <Zap size={18} /> },
@@ -69,20 +71,21 @@ const Sidebar = ({
                 ))}
             </nav>
 
-            <div className="vectron-orb-container">
-                <div
-                    className={`orb-wrapper ${isListening ? 'listening' : ''} ${isThinking ? 'thinking' : ''} ${isSpeaking ? 'speaking' : ''}`}
-                    onClick={onToggleListen}
-                    title={isListening ? "VECTRON está escuchando..." : (isThinking ? "VECTRON está pensando..." : (isSpeaking ? "VECTRON está hablando..." : "Activar Escucha Neural"))}
-                >
-                    <div className="orb-rings"></div>
-                    <div className="orb-rings"></div>
-                    <div className="vectron-orb"></div>
-                </div>
+            <div className="vectron-orb-section">
+                {children || (
+                    <div onClick={onToggleListen} className="orb-click-zone">
+                        <VectronOrb
+                            isListening={isListening}
+                            isThinking={isThinking}
+                            isSpeaking={isSpeaking}
+                            sentiment={sentiment}
+                            size={100}
+                        />
+                    </div>
+                )}
                 <span className="orb-label">
                     {isListening ? 'VECTRON LISTENING' : (isThinking ? 'VECTRON THINKING' : (isSpeaking ? 'VECTRON SPEAKING' : 'VECTRON STANDBY'))}
                 </span>
-                <VoiceVisualizer isListening={isListening} stream={audioStream} />
             </div>
 
             <div className="sidebar-footer">

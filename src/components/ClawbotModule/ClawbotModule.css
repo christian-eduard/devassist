@@ -435,4 +435,32 @@
     display: block;
     margin-top: 5px;
     font-size: 12px;
-}.module-body { flex: 1; padding: 0 4px 24px 0; overflow-y: auto; }
+}
+
+.module-body {
+    flex: 1;
+    padding: 0 4px 24px 0;
+    overflow-y: auto;
+}
+
+.text-success {
+    color: #22c55e !important;
+}
+
+.text-danger {
+    color: #ef4444 !important;
+}
+
+.text-warning {
+    color: #f59e0b !important;
+}
+
+.mt-2 {
+    margin-top: 12px;
+}
+
+.btn-sm-primary {
+    background: var(--accent);
+    color: white;
+    border: none;
+}

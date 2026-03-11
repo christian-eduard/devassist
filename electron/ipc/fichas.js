@@ -268,7 +268,7 @@ async function processTikTokUrl(url, config) {
         let autor = 'desconocido';
         try {
             const meta = execSync(
-                `yt-dlp --no-playlist --print "%(title)s|||%(uploader)s" "${url}"`,
+                `yt-dlp --impersonate chrome --no-playlist --print "%(title)s|||%(uploader)s" "${url}"`,
                 { encoding: 'utf8', timeout: 30000 }
             ).trim();
             const parts = meta.split('|||');
@@ -279,7 +279,7 @@ async function processTikTokUrl(url, config) {
 
         const videoOutputTemplate = path.join(videosDir, '%(id)s.%(ext)s');
         execSync(
-            `yt-dlp -f "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best" -o "${videoOutputTemplate}" --no-playlist --max-filesize 100m "${url}"`,
+            `yt-dlp --impersonate chrome -f "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best" -o "${videoOutputTemplate}" --no-playlist --max-filesize 100m "${url}"`,
             { encoding: 'utf8', timeout: 120000 }
         );
 
@@ -301,7 +301,7 @@ async function processTikTokUrl(url, config) {
         } catch (e) {
             logger.warn('[TikTok] ffmpeg falló, intentando yt-dlp -x...', e.message);
             execSync(
-                `yt-dlp --no-playlist -x --audio-format mp3 --audio-quality 5 -o "${path.join(tmpDir, 'audio.%(ext)s')}" "${url}" 2>&1`,
+                `yt-dlp --impersonate chrome --no-playlist -x --audio-format mp3 --audio-quality 5 -o "${path.join(tmpDir, 'audio.%(ext)s')}" "${url}" 2>&1`,
                 { encoding: 'utf8', timeout: 60000 }
             );
         }

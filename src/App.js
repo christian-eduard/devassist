@@ -11,7 +11,7 @@ import OfficeModule from './components/OfficeModule';
 import CapabilitiesModule from './components/CapabilitiesModule';
 import ConversationDisplay from './components/ConversationDisplay';
 import NotificationCenter from './components/NotificationCenter';
-
+import VectronOrb from './components/VectronOrb';
 const MODULES = ['projects', 'fichas', 'notes', 'aihub', 'office', 'clawbot', 'capabilities', 'logs', 'settings'];
 
 function App() {
@@ -53,185 +53,47 @@ function App() {
 
     // Initial Load
     useEffect(() => {
-        const loadN = async () => {
+        const init = async () => {
+            console.info('[App] Iniciando Reactor VECTRON (init phase)...');
+
             if (window.electronAPI?.notifications?.load) {
                 const list = await window.electronAPI.notifications.load();
                 if (list) setNotifications(list);
             }
         };
-        loadN();
+        init();
+        console.info('[App] VECTRON Reactor iniciado. Componente montado.');
     }, []);
 
     // ── VECTRON States ──
-    const [isListening, setIsListening] = useState(false);
     const [isThinking, setIsThinking] = useState(false);
     const [isSpeaking, setIsSpeaking] = useState(false);
-    const [audioStream, setAudioStream] = useState(null);
+    const isSpeakingRef = useRef(false);
+
+    // Sincronizar ref con estado para uso en callbacks estables
+    useEffect(() => {
+        isSpeakingRef.current = isSpeaking;
+    }, [isSpeaking]);
+
     const [showTextInput, setShowTextInput] = useState(false);
     const [textInput, setTextInput] = useState('');
-    const mediaRecorderRef = useRef(null);
-    const audioChunksRef = useRef([]);
-    const silenceTimerRef = useRef(null);
-    const analyserRef = useRef(null);
-    const audioCtxRef = useRef(null);
+    const [conversationMode, setConversationMode] = useState(false);
     const conversationModeRef = useRef(false);
 
-    // ── Detección de silencio para auto-stop ──
-    const startSilenceDetection = (stream) => {
-        try {
-            const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-            audioCtxRef.current = audioCtx;
-            const source = audioCtx.createMediaStreamSource(stream);
-            const analyser = audioCtx.createAnalyser();
-            analyser.fftSize = 512;
-            analyser.smoothingTimeConstant = 0.2;
-            source.connect(analyser);
-            analyserRef.current = analyser;
-
-            const dataArray = new Uint8Array(analyser.frequencyBinCount);
-            let silentFrames = 0;
-            let totalFrames = 0;
-            const SILENCE_THRESHOLD = 20; // Reacciona a picos (0-255)
-            const SILENCE_DURATION = 50; // ~1.5 segundos de silencio relativo
-            const MAX_DURATION = 300; // max ~10 segundos de escucha (300 frames a 30fps)
-            let hasSpoken = false;
-
-            const checkSilence = () => {
-                if (!analyserRef.current) return;
-                analyser.getByteFrequencyData(dataArray);
-
-                // Usamos el pico máximo en lugar del promedio (más sensible a la voz)
-                let maxVol = 0;
-                for (let i = 0; i < dataArray.length; i++) {
-                    if (dataArray[i] > maxVol) maxVol = dataArray[i];
-                }
-
-                totalFrames++;
-
-                if (maxVol > SILENCE_THRESHOLD) {
-                    hasSpoken = true;
-                    silentFrames = 0;
-                } else {
-                    silentFrames++;
-                }
-
-                // Auto-stop si ya habló y hubo silencio, o si llegamos al límite de tiempo
-                if ((hasSpoken && silentFrames > SILENCE_DURATION) || totalFrames > MAX_DURATION) {
-                    stopListening();
-                    return;
-                }
-
-                silenceTimerRef.current = requestAnimationFrame(checkSilence);
-            };
-
-            silenceTimerRef.current = requestAnimationFrame(checkSilence);
-        } catch (e) {
-            console.warn('[VAD] Silence detection not available:', e);
-        }
-    };
-
-    const cleanupSilenceDetection = () => {
-        if (silenceTimerRef.current) cancelAnimationFrame(silenceTimerRef.current);
-        if (audioCtxRef.current) {
-            audioCtxRef.current.close().catch(() => { });
-            audioCtxRef.current = null;
-        }
-        analyserRef.current = null;
-    };
-
-    const startListening = async () => {
-        if (isThinking || isSpeaking) return;
-        try {
-            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-            setAudioStream(stream);
-            const mediaRecorder = new MediaRecorder(stream);
-            mediaRecorderRef.current = mediaRecorder;
-            audioChunksRef.current = [];
-
-            mediaRecorder.ondataavailable = (event) => {
-                if (event.data.size > 0) audioChunksRef.current.push(event.data);
-            };
-
-            mediaRecorder.onstop = async () => {
-                cleanupSilenceDetection();
-                const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
-                stream.getTracks().forEach(track => track.stop());
-                setAudioStream(null);
-
-                // Procesar independientemente del tamaño para no perder fragmentos cortos
-                if (audioBlob.size > 0) {
-                    handleProcessVoice(audioBlob);
-                }
-            };
-
-            mediaRecorder.start(250); // chunks cada 250ms para mejor detección
-            setIsListening(true);
-
-            // Iniciar detección de silencio
-            startSilenceDetection(stream);
-        } catch (err) {
-            console.error('Mic Error:', err);
-            showToast('No se pudo acceder al micrófono', 'error');
-        }
-    };
-
-
-    const stopListening = () => {
-        if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
-            mediaRecorderRef.current.stop();
-        }
-        setIsListening(false);
-    };
-
     const handleToggleListen = () => {
-        if (isListening || conversationModeRef.current) {
-            conversationModeRef.current = false;
-            stopListening();
-            showToast('Modo conversación desactivado', 'info');
-        } else {
-            conversationModeRef.current = true;
-            startListening();
-            showToast('Modo conversación activado', 'success');
-        }
-    };
-
-    const handleProcessVoice = async (blob) => {
-        if (!window.electronAPI) return;
-        setIsThinking(true);
-        try {
-            const arrayBuffer = await blob.arrayBuffer();
-            const result = await window.electronAPI.ai.transcribeAudio(arrayBuffer);
-            if (result && result.text) {
-                setLastUserText(result.text);
-                setLastVectronText('');
-                await window.electronAPI.clawbot.sendCommand(result.text);
-            } else {
-                showToast('No se detectó voz clara', 'info');
-                // Si estamos en modo conversación y falló la voz, volvemos a escuchar tras un breve delay
-                setIsThinking(false);
-                if (conversationModeRef.current) {
-                    setTimeout(() => startListening(), 500);
-                }
-            }
-        } catch (err) {
-            console.error('Transcription Error:', err);
-            showToast('Error al procesar voz', 'error');
-            setIsThinking(false);
-            if (conversationModeRef.current) {
-                conversationModeRef.current = false; // Desactivar ante un error fuerte
-            }
-        }
+        // Voz desactivada por motivos de estabilidad
+        showToast('VECTRON Voz desactivada para estabilidad', 'error');
     };
 
     // ── Envío de texto (alternativo) ──
     const handleSendText = async (e) => {
-        e.preventDefault();
+        if (e) e.preventDefault();
         const text = textInput.trim();
         if (!text || isThinking) return;
-        setTextInput('');
-        setShowTextInput(false);
         setLastUserText(text);
         setLastVectronText('');
+        setTextInput('');
+        setShowTextInput(false);
         setIsThinking(true);
         try {
             await window.electronAPI.clawbot.sendCommand(text);
@@ -239,63 +101,52 @@ function App() {
             showToast('Error al enviar', 'error');
         } finally {
             setIsThinking(false);
+            // Tras enviar texto, activamos escucha automática en el siguiente tick para evitar colisiones
+            setTimeout(() => {
+                if (!conversationModeRef.current) {
+                    setConversationMode(true);
+                    conversationModeRef.current = true;
+                }
+            }, 100);
         }
     };
 
-    // ── Global Voice Output Listener ──
+    // ── Global Voice Output Listener (Streaming & Final) ──
     useEffect(() => {
         if (!window.electronAPI) return;
-        const unSub = window.electronAPI.clawbot.onMessageSent(async (data) => {
-            // Speak if it's from vectron
+
+        // 1. Manejo de Chunks (Streaming para Real-Time)
+        const unSubChunks = window.electronAPI.clawbot.onResponseChunk(async (data) => {
+            try {
+                if (data && data.text) {
+                    setIsSpeaking(true);
+                }
+            } catch (e) {
+                console.error('[App] Error en chunk handler:', e);
+            }
+        });
+
+        // 2. Manejo de Mensaje Final (Telegram o Fallback)
+        const unSubFinal = window.electronAPI.clawbot.onMessageSent(async (data) => {
             if (data && data.userId === 'vectron' && data.text) {
                 setLastVectronText(data.text);
                 setIsThinking(false);
-                try {
-                    const audioRes = await window.electronAPI.ai.synthesizeSpeech(data.text);
-                    if (audioRes?.ok && audioRes.audioBase64) {
-                        setIsSpeaking(true);
-                        // Decodificar base64 a Blob y reproducir
-                        const byteChars = atob(audioRes.audioBase64);
-                        const byteNums = new Array(byteChars.length);
-                        for (let i = 0; i < byteChars.length; i++) byteNums[i] = byteChars.charCodeAt(i);
-                        const byteArray = new Uint8Array(byteNums);
-                        const blob = new Blob([byteArray], { type: 'audio/mpeg' });
-                        const blobUrl = URL.createObjectURL(blob);
 
-                        const audio = new Audio(blobUrl);
-                        audio.onended = () => {
-                            setIsSpeaking(false);
-                            URL.revokeObjectURL(blobUrl);
-                            // Auto-resume listening
-                            if (conversationModeRef.current) {
-                                setTimeout(() => startListening(), 500);
-                            }
-                        };
-                        audio.onerror = (e) => {
-                            console.warn('[TTS] Audio playback error:', e);
-                            setIsSpeaking(false);
-                            URL.revokeObjectURL(blobUrl);
-                            if (conversationModeRef.current) setTimeout(() => startListening(), 500);
-                        };
-                        audio.play().catch((e) => {
-                            console.warn('[TTS] Play rejected:', e.message);
-                            setIsSpeaking(false);
-                            URL.revokeObjectURL(blobUrl);
-                            if (conversationModeRef.current) setTimeout(() => startListening(), 500);
-                        });
-                    } else {
-                        // Si no hay audio, simplemente no hablamos
-                        setIsSpeaking(false);
-                        if (conversationModeRef.current) setTimeout(() => startListening(), 500);
-                    }
-                } catch (e) {
-                    console.warn('[TTS] Synthesis error (non-blocking):', e.message || e);
-                    setIsSpeaking(false);
-                    if (conversationModeRef.current) setTimeout(() => startListening(), 500);
+                // Si recibimos respuesta, forzamos modo escucha para que el usuario pueda replicar
+                if (!conversationModeRef.current) {
+                    setConversationMode(true);
+                    conversationModeRef.current = true;
                 }
+
+                // Pequeño delay antes de apagar la animación de habla
+                setTimeout(() => setIsSpeaking(false), 2000);
             }
         });
-        return () => unSub();
+
+        return () => {
+            unSubChunks();
+            unSubFinal();
+        };
     }, []);
 
     const hasGreetedRef = useRef(false);
@@ -304,7 +155,8 @@ function App() {
             hasGreetedRef.current = true;
             setTimeout(() => {
                 if (window.electronAPI?.clawbot) {
-                    window.electronAPI.clawbot.sendCommand("GREET_USER_STARTUP");
+                    // Eliminamos el nombre 'Chris' para cumplir con la restricción del usuario
+                    window.electronAPI.clawbot.sendCommand("Preséntate como VECTRON y saluda al Señor");
                 }
             }, 3000);
         }
@@ -345,8 +197,21 @@ function App() {
         else document.body.classList.remove('light-mode');
     }, [theme]);
 
+    const [sentiment, setSentiment] = useState(null);
+
     // ── Global Event Registration ──
     useEffect(() => {
+        const handleAction = (e) => {
+            if (e.detail?.type) {
+                setSentiment(e.detail.type);
+                // Resetear sentimiento tras unos segundos si es temporal
+                if (['SUCCESS', 'FAIL', 'ANALYZING'].includes(e.detail.type)) {
+                    setTimeout(() => setSentiment(null), 4000);
+                }
+            }
+        };
+        window.addEventListener('vectron:action', handleAction);
+
         const handleWinNotify = (e) => e.detail && addNotification(e.detail);
         window.addEventListener('vectron:notify', handleWinNotify);
 
@@ -398,14 +263,25 @@ function App() {
                     theme={theme}
                     onToggleTheme={() => setTheme(prev => prev === 'dark' ? 'light' : 'dark')}
                     systemStatus={systemStatus}
-                    isListening={isListening}
+                    isListening={false}
                     isThinking={isThinking}
                     isSpeaking={isSpeaking}
                     onToggleListen={handleToggleListen}
-                    audioStream={audioStream}
+                    audioStream={null}
                     notificationCount={notifications.filter(n => !n.read).length}
                     onToggleNC={() => setNcOpen(!ncOpen)}
-                />
+                    sentiment={sentiment}
+                >
+                    <div onClick={handleToggleListen} className="orb-click-zone">
+                        <VectronOrb
+                            isListening={false}
+                            isThinking={isThinking}
+                            isSpeaking={isSpeaking}
+                            sentiment={sentiment}
+                            size={220}
+                        />
+                    </div>
+                </Sidebar>
                 <main className="main-content">{renderModule()}</main>
 
                 {ncOpen && (

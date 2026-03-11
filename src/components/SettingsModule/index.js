@@ -12,9 +12,11 @@ import {
     MessageSquare,
     FileJson,
     Trash2,
-    Database
+    Database,
+    Mic,
+    Cpu
 } from 'lucide-react';
-import './SettingsModule.css';
+import AgentsTab from './AgentsTab';
 
 const SettingsModule = ({ showToast, clawbotActive, setClawbotActive, onNavigate }) => {
     const [config, setConfig] = useState(null);
@@ -91,6 +93,7 @@ const SettingsModule = ({ showToast, clawbotActive, setClawbotActive, onNavigate
 
     const tabs = [
         { id: 'general', label: 'General', icon: <Search size={16} /> },
+        { id: 'agents', label: 'Agentes', icon: <Cpu size={16} /> },
         { id: 'storage', label: 'Almacenamiento', icon: <Database size={16} /> },
         { id: 'clawbot', label: 'Clawbot', icon: <Bot size={16} /> }
     ];
@@ -159,6 +162,10 @@ const SettingsModule = ({ showToast, clawbotActive, setClawbotActive, onNavigate
                             </div>
                         </section>
                     </>
+                )}
+
+                {activeTab === 'agents' && (
+                    <AgentsTab showToast={showToast} />
                 )}
 
                 {activeTab === 'storage' && (
