@@ -17,6 +17,7 @@ import {
     Cpu
 } from 'lucide-react';
 import AgentsTab from './AgentsTab';
+import './SettingsModule.css';
 
 const SettingsModule = ({ showToast, clawbotActive, setClawbotActive, onNavigate }) => {
     const [config, setConfig] = useState(null);
