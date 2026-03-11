@@ -12,7 +12,6 @@ import {
     Bell
 } from 'lucide-react';
 import './Sidebar.css';
-import VectronOrb from './VectronOrb';
 
 const Sidebar = ({
     activeModule,
@@ -29,8 +28,7 @@ const Sidebar = ({
     audioStream,
     notificationCount,
     onToggleNC,
-    sentiment,
-    children
+    sentiment
 }) => {
     const items = [
         { id: 'projects', label: 'Proyectos', icon: <Zap size={18} /> },
@@ -71,22 +69,6 @@ const Sidebar = ({
                 ))}
             </nav>
 
-            <div className="vectron-orb-section">
-                {children || (
-                    <div onClick={onToggleListen} className="orb-click-zone">
-                        <VectronOrb
-                            isListening={isListening}
-                            isThinking={isThinking}
-                            isSpeaking={isSpeaking}
-                            sentiment={sentiment}
-                            size={100}
-                        />
-                    </div>
-                )}
-                <span className="orb-label">
-                    {isListening ? 'VECTRON LISTENING' : (isThinking ? 'VECTRON THINKING' : (isSpeaking ? 'VECTRON SPEAKING' : 'VECTRON STANDBY'))}
-                </span>
-            </div>
 
             <div className="sidebar-footer">
                 <button className="theme-toggle" onClick={onToggleTheme} title="Cambiar tema">

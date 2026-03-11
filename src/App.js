@@ -11,7 +11,6 @@ import OfficeModule from './components/OfficeModule';
 import CapabilitiesModule from './components/CapabilitiesModule';
 import ConversationDisplay from './components/ConversationDisplay';
 import NotificationCenter from './components/NotificationCenter';
-import VectronOrb from './components/VectronOrb';
 const MODULES = ['projects', 'fichas', 'notes', 'aihub', 'office', 'clawbot', 'capabilities', 'logs', 'settings'];
 
 function App() {
@@ -271,17 +270,7 @@ function App() {
                     notificationCount={notifications.filter(n => !n.read).length}
                     onToggleNC={() => setNcOpen(!ncOpen)}
                     sentiment={sentiment}
-                >
-                    <div onClick={handleToggleListen} className="orb-click-zone">
-                        <VectronOrb
-                            isListening={false}
-                            isThinking={isThinking}
-                            isSpeaking={isSpeaking}
-                            sentiment={sentiment}
-                            size={220}
-                        />
-                    </div>
-                </Sidebar>
+                />
                 <main className="main-content">{renderModule()}</main>
 
                 {ncOpen && (

@@ -37,6 +37,40 @@ module.exports = function registerClawbotHandlers(ipcMain, mainWindow, DATA_DIR,
         return { ok: true };
     });
 
+    ipcMain.handle('clawbot:get-stats', async () => {
+        const history = loadHistory(DATA_DIR);
+        const tg = history.filter(h => h.channel === 'telegram').length;
+        const wa = history.filter(h => h.channel === 'whatsapp').length;
+        return { total: tg + wa, telegram: tg, whatsapp: wa, errors: 0 };
+    });
+
+    ipcMain.handle('clawbot:get-skills', async () => {
+        const skillsDir = require('os').homedir() + '/.openclaw/skills';
+        if (!fs.existsSync(skillsDir)) return [];
+        return fs.readdirSync(skillsDir)
+            .filter(dir => fs.statSync(path.join(skillsDir, dir)).isDirectory())
+            .map(dir => {
+                const skillFile = path.join(skillsDir, dir, 'SKILL.md');
+                let content = '';
+                if (fs.existsSync(skillFile)) content = fs.readFileSync(skillFile, 'utf8');
+                return { name: dir, content };
+            });
+    });
+
+    ipcMain.handle('clawbot:save-skill', async (_e, skill) => {
+        const skillsDir = require('os').homedir() + '/.openclaw/skills';
+        const targetDir = path.join(skillsDir, skill.name);
+        if (!fs.existsSync(targetDir)) fs.mkdirSync(targetDir, { recursive: true });
+        fs.writeFileSync(path.join(targetDir, 'SKILL.md'), skill.content);
+        return { ok: true };
+    });
+
+    ipcMain.handle('clawbot:delete-skill', async (_e, name) => {
+        const targetDir = path.join(require('os').homedir() + '/.openclaw/skills', name);
+        if (fs.existsSync(targetDir)) fs.rmdirSync(targetDir, { recursive: true });
+        return { ok: true };
+    });
+
     ipcMain.handle('clawbot:get-system-status', async () => {
         const status = {
             whatsapp: 'checking'
