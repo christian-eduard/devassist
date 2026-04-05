@@ -139,3 +139,4 @@ node_modules_broken/
 public/ort*.wasm
 public/ort*.mjs
 public/ort*.mjs
+scripts/restore_legacy_keys.js
