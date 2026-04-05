@@ -11,7 +11,7 @@ const LogsModule = ({ showToast }) => {
     const fetchLogs = async () => {
         if (!window.electronAPI) return;
         setLoading(true);
-        const res = await window.electronAPI.clawbot.getLogs();
+        const res = await window.electronAPI.system.getLogs();
         if (res.ok) {
             const logLines = res.logs.split('\n').filter(l => l.trim());
             setLogs(logLines);
@@ -30,12 +30,14 @@ const LogsModule = ({ showToast }) => {
         logEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, [logs]);
 
-    const filteredLogs = logs.filter(line =>
-        line.toLowerCase().includes(filter.toLowerCase())
-    );
+    const filteredLogs = logs.filter(line => {
+        if (!line) return false;
+        const lineStr = String(line);
+        return !filter || lineStr.toLowerCase().includes(filter.toLowerCase());
+    });
 
     const getLineClass = (line) => {
-        const lo = line.toLowerCase();
+        const lo = String(line).toLowerCase();
         if (lo.includes('error') || lo.includes('fail') || lo.includes('unauthorized')) return 'log-error';
         if (lo.includes('warn')) return 'log-warn';
         if (lo.includes('info')) return 'log-info';
@@ -47,7 +49,7 @@ const LogsModule = ({ showToast }) => {
             <header className="module-header luxury">
                 <div className="header-info">
                     <h1>Mando de Logs <span className="badge-live">DEBUG</span></h1>
-                    <p>Monitoreo en tiempo real de eventos de red y agentes VECTRON</p>
+                    <p>Monitoreo en tiempo real de eventos de red y agentes IA</p>
                 </div>
                 <div className="header-actions">
                     <div className="search-box">
@@ -72,7 +74,7 @@ const LogsModule = ({ showToast }) => {
                 <div className="terminal-container">
                     <div className="terminal-header">
                         <Terminal size={14} />
-                        <span>clawbot-gateway-v2.0.log</span>
+                        <span>devassist-system.log</span>
                         <div className="terminal-dots">
                             <span className="dot red"></span>
                             <span className="dot yellow"></span>

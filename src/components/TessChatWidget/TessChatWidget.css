@@ -1,0 +1,368 @@
+/* TessChatWidget.css — TESS Floating Assistant */
+
+/* ─── Floating Action Button ─── */
+.tess-fab {
+    position: fixed;
+    bottom: 28px;
+    right: 28px;
+    z-index: 9999;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 18px 12px 14px;
+    border-radius: 30px;
+    background: linear-gradient(135deg, #7c3aed, #6d28d9);
+    border: 1px solid rgba(139, 92, 246, 0.5);
+    box-shadow: 0 8px 32px rgba(109, 40, 217, 0.45), 0 2px 8px rgba(0,0,0,0.4);
+    cursor: pointer;
+    color: #fff;
+    font-size: 14px;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+    transition: all 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+    user-select: none;
+    font-family: var(--font-display, 'Inter', sans-serif);
+}
+
+.tess-fab:hover {
+    transform: translateY(-3px) scale(1.04);
+    box-shadow: 0 12px 40px rgba(109, 40, 217, 0.6), 0 4px 12px rgba(0,0,0,0.4);
+    background: linear-gradient(135deg, #8b5cf6, #7c3aed);
+}
+
+.tess-fab:active {
+    transform: scale(0.97);
+}
+
+.tess-fab--active {
+    padding: 14px;
+    border-radius: 50%;
+    background: #6d28d9;
+}
+
+.tess-fab-emoji {
+    font-size: 20px;
+    line-height: 1;
+    transition: transform 0.2s ease;
+}
+
+.tess-fab-label {
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+/* Pulse animation for new messages */
+@keyframes tessRing {
+    0%   { box-shadow: 0 0 0 0 rgba(139, 92, 246, 0.7); }
+    70%  { box-shadow: 0 0 0 14px rgba(139, 92, 246, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(139, 92, 246, 0); }
+}
+
+.tess-fab--pulse {
+    animation: tessRing 1.5s ease-out 2;
+}
+
+/* ─── Chat Panel ─── */
+.tess-panel {
+    position: fixed;
+    bottom: 96px;
+    right: 28px;
+    z-index: 9998;
+    width: 380px;
+    max-height: 580px;
+    display: flex;
+    flex-direction: column;
+    background: rgba(12, 10, 22, 0.92);
+    backdrop-filter: blur(24px) saturate(180%);
+    -webkit-backdrop-filter: blur(24px) saturate(180%);
+    border: 1px solid rgba(139, 92, 246, 0.25);
+    border-radius: 20px;
+    box-shadow: 0 24px 64px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.05);
+    overflow: hidden;
+    transform-origin: bottom right;
+    transform: scale(0.85) translateY(20px);
+    opacity: 0;
+    pointer-events: none;
+    transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.tess-panel--open {
+    transform: scale(1) translateY(0);
+    opacity: 1;
+    pointer-events: all;
+}
+
+/* Header */
+.tess-panel-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 16px;
+    background: linear-gradient(90deg, rgba(109,40,217,0.2), rgba(109,40,217,0.05));
+    border-bottom: 1px solid rgba(139, 92, 246, 0.15);
+    flex-shrink: 0;
+}
+
+.tess-header-identity {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.tess-header-avatar {
+    font-size: 26px;
+    width: 38px;
+    height: 38px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(139, 92, 246, 0.15);
+    border: 1px solid rgba(139, 92, 246, 0.3);
+    border-radius: 10px;
+}
+
+.tess-header-name {
+    display: block;
+    font-size: 15px;
+    font-weight: 700;
+    color: #e5e7eb;
+    letter-spacing: -0.01em;
+}
+
+.tess-header-sub {
+    display: block;
+    font-size: 11px;
+    color: #8b5cf6;
+    font-weight: 500;
+}
+
+.tess-header-actions {
+    display: flex;
+    gap: 4px;
+}
+
+.tess-icon-btn {
+    background: none;
+    border: none;
+    color: #6b7280;
+    cursor: pointer;
+    padding: 6px;
+    border-radius: 8px;
+    font-size: 14px;
+    transition: all 0.15s;
+}
+
+.tess-icon-btn:hover {
+    background: rgba(255,255,255,0.08);
+    color: #e5e7eb;
+}
+
+/* Messages */
+.tess-messages {
+    flex: 1;
+    overflow-y: auto;
+    padding: 16px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    scroll-behavior: smooth;
+}
+
+.tess-messages::-webkit-scrollbar {
+    width: 4px;
+}
+
+.tess-messages::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.tess-messages::-webkit-scrollbar-thumb {
+    background: rgba(139, 92, 246, 0.25);
+    border-radius: 2px;
+}
+
+/* Individual Messages */
+.tess-msg {
+    display: flex;
+    gap: 8px;
+    align-items: flex-end;
+    max-width: 95%;
+}
+
+.tess-msg--user {
+    flex-direction: row-reverse;
+    align-self: flex-end;
+}
+
+.tess-msg--assistant {
+    align-self: flex-start;
+}
+
+.tess-msg-avatar {
+    font-size: 18px;
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(139, 92, 246, 0.12);
+    border-radius: 8px;
+    flex-shrink: 0;
+}
+
+.tess-msg-bubble {
+    padding: 10px 13px;
+    border-radius: 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    max-width: 270px;
+}
+
+.tess-msg--assistant .tess-msg-bubble {
+    background: rgba(139, 92, 246, 0.1);
+    border: 1px solid rgba(139, 92, 246, 0.18);
+    border-bottom-left-radius: 4px;
+}
+
+.tess-msg--user .tess-msg-bubble {
+    background: linear-gradient(135deg, #6d28d9, #7c3aed);
+    border: 1px solid rgba(139, 92, 246, 0.4);
+    border-bottom-right-radius: 4px;
+}
+
+.tess-msg-content {
+    margin: 0;
+    font-size: 13px;
+    line-height: 1.55;
+    color: #e5e7eb;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+.tess-msg--user .tess-msg-content {
+    color: #fff;
+}
+
+.tess-msg-time {
+    font-size: 10px;
+    color: rgba(255,255,255,0.35);
+    align-self: flex-end;
+}
+
+/* Typing indicator */
+.tess-msg-bubble--typing {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 4px;
+    padding: 12px 16px;
+    min-width: 52px;
+}
+
+.tess-msg-bubble--typing span {
+    display: inline-block;
+    width: 6px;
+    height: 6px;
+    background: #8b5cf6;
+    border-radius: 50%;
+    animation: tessTypingBounce 1.2s ease-in-out infinite;
+}
+
+.tess-msg-bubble--typing span:nth-child(2) { animation-delay: 0.2s; }
+.tess-msg-bubble--typing span:nth-child(3) { animation-delay: 0.4s; }
+
+@keyframes tessTypingBounce {
+    0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
+    30% { transform: translateY(-5px); opacity: 1; }
+}
+
+/* Input bar */
+.tess-input-bar {
+    display: flex;
+    gap: 8px;
+    align-items: flex-end;
+    padding: 10px 12px;
+    border-top: 1px solid rgba(139, 92, 246, 0.12);
+    background: rgba(0,0,0,0.2);
+    flex-shrink: 0;
+}
+
+.tess-input {
+    flex: 1;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(139, 92, 246, 0.2);
+    border-radius: 12px;
+    padding: 10px 14px;
+    font-size: 13px;
+    color: #e5e7eb;
+    resize: none;
+    outline: none;
+    font-family: var(--font-display, 'Inter', sans-serif);
+    min-height: 40px;
+    max-height: 120px;
+    overflow-y: auto;
+    line-height: 1.5;
+    transition: border-color 0.2s;
+}
+
+.tess-input:focus {
+    border-color: rgba(139, 92, 246, 0.5);
+    background: rgba(255,255,255,0.06);
+}
+
+.tess-input::placeholder {
+    color: rgba(255,255,255,0.25);
+}
+
+.tess-input:disabled {
+    opacity: 0.5;
+}
+
+.tess-send-btn {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #7c3aed, #6d28d9);
+    border: 1px solid rgba(139, 92, 246, 0.4);
+    color: #fff;
+    font-size: 18px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.tess-send-btn:hover:not(:disabled) {
+    transform: scale(1.1);
+    box-shadow: 0 0 12px rgba(139, 92, 246, 0.5);
+}
+
+.tess-send-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+    transform: none;
+}
+
+.tess-send-btn.loading {
+    animation: tessSpinPulse 1.5s ease infinite;
+}
+
+@keyframes tessSpinPulse {
+    0%, 100% { opacity: 0.6; }
+    50% { opacity: 1; }
+}
+
+.spin {
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}

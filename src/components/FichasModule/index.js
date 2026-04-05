@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
     Search,
     Database,
@@ -22,17 +22,42 @@ import {
 } from 'lucide-react';
 import './FichasModule.css';
 
-const FichasModule = ({ showToast }) => {
+const FichasModule = ({ showToast, addNotification }) => {
     const [fichas, setFichas] = useState([]);
     const [selectedFicha, setSelectedFicha] = useState(null);
+    const [previewFicha, setPreviewFicha] = useState(null); // Nuevo estado para previsualización
     const [isAnalyzing, setIsAnalyzing] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
     const [activeTag, setActiveTag] = useState(null);
     const [automationStatus, setAutomationStatus] = useState(null);
     const [showVideoModal, setShowVideoModal] = useState(false);
+    const [showUrlInput, setShowUrlInput] = useState(false);
+    const [urlInput, setUrlInput] = useState('');
+    const [processLogs, setProcessLogs] = useState([]);
+    const [showProcessConsole, setShowProcessConsole] = useState(false);
     const [activeTab, setActiveTab] = useState('general');
     const [researchResult, setResearchResult] = useState(null);
     const [isResearchingPoint, setIsResearchingPoint] = useState(false);
+    const activeProcessId = useRef(null);
+
+    useEffect(() => {
+        if (window.electronAPI?.fichas?.onProcessProgress) {
+            const unsub = window.electronAPI.fichas.onProcessProgress((msg) => {
+                setProcessLogs(prev => [...prev, `[${new Date().toLocaleTimeString()}] ${msg}`].slice(-20));
+                showToast(msg, msg.startsWith('Error') ? 'error' : 'info');
+                
+                if (activeProcessId.current && addNotification) {
+                    addNotification({
+                        id: activeProcessId.current,
+                        title: 'Procesando Enlace',
+                        message: msg,
+                        type: msg.startsWith('Error') ? 'error' : 'system'
+                    });
+                }
+            });
+            return unsub;
+        }
+    }, [showToast, addNotification]);
 
     // ── Load fichas ──
     const loadFichas = useCallback(async () => {
@@ -49,41 +74,14 @@ const FichasModule = ({ showToast }) => {
     useEffect(() => {
         loadFichas();
 
-        // ── Listen for new videos from watcher/clawbot ──
+        // ── Listen for new videos from watcher/system ──
         const unsubscribe = window.electronAPI.fichas.onNewVideoDetected((data) => {
             showToast(`Nuevo video detectado: ${data.fileName}`, 'info');
         });
 
-        const unsubscribeClaw = window.electronAPI.clawbot.onNewVideo((data) => {
-            showToast(`Clawbot recibió un video: ${data.fileName}`, 'success');
-        });
-
-        const unsubProcessing = window.electronAPI.clawbot.onTikTokProcessing(({ url }) => {
-            setAutomationStatus({ msg: 'Iniciando proceso TikTok...', url });
-        });
-
-        const unsubStatus = window.electronAPI.clawbot.onStatus(({ msg }) => {
-            setAutomationStatus(prev => prev ? { ...prev, msg } : { msg });
-        });
-
-        const unsubFicha = window.electronAPI.clawbot.onFichaCreated(() => {
-            setAutomationStatus(null);
-            loadFichas();
-            showToast('Nueva ficha creada automáticamente', 'success');
-        });
-
-        const unsubError = window.electronAPI.clawbot.onError(({ msg }) => {
-            setAutomationStatus(null);
-            showToast(`Error: ${msg}`, 'error');
-        });
 
         return () => {
             unsubscribe();
-            unsubscribeClaw();
-            unsubProcessing();
-            unsubStatus();
-            unsubFicha();
-            unsubError();
         };
     }, [loadFichas, showToast]);
 
@@ -94,6 +92,14 @@ const FichasModule = ({ showToast }) => {
 
         setIsAnalyzing(true);
         showToast('Iniciando análisis con Gemini...', 'info');
+        if (addNotification) {
+            addNotification({
+                title: 'Analizando Video Local',
+                message: `Extrayendo conocimiento con Gemini...`,
+                type: 'info',
+                module: 'fichas'
+            });
+        }
 
         try {
             const id = Date.now().toString();
@@ -120,10 +126,98 @@ const FichasModule = ({ showToast }) => {
             await loadFichas();
             setSelectedFicha(newFicha);
             showToast('Análisis completado', 'success');
+            if (addNotification) {
+                addNotification({
+                    title: 'Ficha Creada',
+                    message: `${newFicha.titulo} guardada en el vault.`,
+                    type: 'success',
+                    module: 'fichas'
+                });
+            }
         } catch (err) {
             showToast(`Error: ${err.message}`, 'error');
+            if (addNotification) {
+                addNotification({
+                    title: 'Error de Análisis',
+                    message: err.message,
+                    type: 'error',
+                    module: 'fichas'
+                });
+            }
         } finally {
             setIsAnalyzing(false);
+        }
+    };
+
+    const handleUrlProcess = async (url) => {
+        if (!url) return;
+        const isUrl = url.trim().startsWith('http') || url.includes('.');
+        if (!isUrl) {
+            showToast('¡Vaya! Parece que nos hemos equivocado con el enlace.', 'error');
+            setProcessLogs(prev => [...prev, 'ERROR: El texto introducido no es un enlace válido.']);
+            addNotification({
+                title: 'Error de entrada',
+                message: 'Para que funcione, copia el enlace directamente de la barra de direcciones o del botón "Compartir" de TikTok/YouTube.',
+                type: 'error'
+            });
+            return;
+        }
+        
+        setShowProcessConsole(true);
+        setProcessLogs([`[${new Date().toLocaleTimeString()}] Iniciando pipeline para: ${url}`]);
+        setIsAnalyzing(true);
+        const processNotificationId = `proc-${Date.now()}`;
+        activeProcessId.current = processNotificationId;
+        
+        showToast('Iniciando proceso de enlace...', 'info');
+        
+        if (addNotification) {
+            addNotification({
+                id: processNotificationId,
+                title: 'Procesando Enlace',
+                message: `Descargando: ${url.substring(0, 40)}...`,
+                type: 'system',
+                module: 'fichas'
+            });
+        }
+
+        try {
+            const processResult = await window.electronAPI.fichas.processTikTokUrl(url);
+
+            if (!processResult.ok) throw new Error(processResult.error);
+
+            // Backend already saves the ficha to the database
+            await loadFichas();
+            // Try to find the newly created one to select it
+            const createdFicha = processResult.id ? processResult : processResult.ficha || processResult;
+            setSelectedFicha(createdFicha);
+            
+            showToast('Análisis de enlace completado', 'success');
+            if (addNotification) {
+                setTimeout(() => {
+                    addNotification({
+                        id: `success-${Date.now()}`,
+                        title: 'Análisis Finalizado',
+                        message: `Ficha generada: ${createdFicha.title || createdFicha.titulo || 'Nueva Ficha'}`,
+                        type: 'success',
+                        module: 'fichas'
+                    });
+                }, 500);
+            }
+        } catch (err) {
+            showToast(`Error: ${err.message}`, 'error');
+            if (addNotification) {
+                addNotification({
+                    id: processNotificationId,
+                    title: 'Error de Procesamiento',
+                    message: err.message,
+                    type: 'error',
+                    module: 'fichas'
+                });
+            }
+        } finally {
+            setIsAnalyzing(false);
+            activeProcessId.current = null;
         }
     };
 
@@ -248,12 +342,16 @@ const FichasModule = ({ showToast }) => {
     }, [fichas]);
 
     const filteredFichas = fichas.filter(f => {
-        const matchesSearch =
-            f.titulo.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            f.concepto.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            (f.tags && f.tags.some(t => t.toLowerCase().includes(searchQuery.toLowerCase())));
+        const title = f.titulo || f.title || '';
+        const concept = f.concepto || f.concept || '';
+        const tags = Array.isArray(f.tags) ? f.tags : [];
 
-        const matchesTag = !activeTag || (f.tags && f.tags.includes(activeTag));
+        const matchesSearch =
+            title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+            concept.toLowerCase().includes(searchQuery.toLowerCase()) ||
+            tags.some(t => t.toLowerCase().includes(searchQuery.toLowerCase()));
+
+        const matchesTag = !activeTag || tags.includes(activeTag);
 
         return matchesSearch && matchesTag;
     });
@@ -337,14 +435,87 @@ const FichasModule = ({ showToast }) => {
                 </div>
             )}
 
+            {/* ── Preview Modal ── */}
+            {previewFicha && (
+                <div className="video-modal-overlay" onClick={() => setPreviewFicha(null)}>
+                    <div className="video-modal-content preview-modal" onClick={e => e.stopPropagation()} style={{ maxWidth: '600px', height: 'auto', minHeight: '300px' }}>
+                        <header className="modal-header">
+                            <div>
+                                <span className="tag-source" style={{ background: 'var(--accent)', marginBottom: '4px', display: 'inline-block' }}>Resumen Express</span>
+                                <h2 style={{ fontSize: '1.2rem' }}>{previewFicha.titulo}</h2>
+                            </div>
+                            <button className="close-modal" onClick={() => setPreviewFicha(null)}><X size={32} /></button>
+                        </header>
+                        <div className="tab-content" style={{ padding: '30px' }}>
+                            <div className="preview-concept">
+                                <Sparkles size={24} style={{ color: 'var(--accent)', marginBottom: '15px' }} />
+                                <p style={{ fontSize: '1.1rem', lineHeight: '1.6', color: '#fff' }}>{previewFicha.concepto}</p>
+                            </div>
+                            <div className="preview-footer" style={{ marginTop: '30px', display: 'flex', gap: '15px', justifyContent: 'flex-end' }}>
+                                <button className="btn btn-outline" onClick={() => setPreviewFicha(null)}>Cerrar</button>
+                                <button className="btn btn-primary" onClick={() => { setSelectedFicha(previewFicha); setPreviewFicha(null); }}>Ver ficha completa</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             <div className="fichas-list-panel">
                 <header className="module-header-mini">
                     <div className="header-top">
                         <h1>Knowledge Vault</h1>
-                        <button className="btn btn-sm btn-primary" onClick={handleUploadVideo} disabled={isAnalyzing}>
-                            {isAnalyzing ? <span className="spinner"></span> : <><Plus size={14} /> Video</>}
-                        </button>
+                        <div style={{ display: 'flex', gap: '8px' }}>
+                            <button className="btn btn-sm btn-primary" onClick={handleUploadVideo} disabled={isAnalyzing}>
+                                {isAnalyzing ? <span className="spinner"></span> : <><Plus size={14} /> Local</>}
+                            </button>
+                            <button className="btn btn-sm btn-outline" onClick={() => setShowUrlInput(!showUrlInput)} disabled={isAnalyzing}>
+                                <Globe size={14} /> Enlace
+                            </button>
+                        </div>
                     </div>
+
+                    {showUrlInput && (
+                        <div className="url-input-container" style={{ display: 'flex', gap: '8px', marginBottom: '15px', width: '100%' }}>
+                            <input
+                                type="text"
+                                className="input sm url-input-field"
+                                style={{ flex: 1, padding: '8px', borderRadius: '6px' }}
+                                placeholder="Pega el enlace de video (ej. TikTok)..."
+                                value={urlInput}
+                                onChange={e => setUrlInput(e.target.value)}
+                            />
+                            <button className="btn btn-sm btn-primary" onClick={() => {
+                                setShowUrlInput(false);
+                                handleUrlProcess(urlInput);
+                                setUrlInput('');
+                            }}>
+                                Procesar
+                            </button>
+                        </div>
+                    )}
+
+                    {showProcessConsole && (
+                        <div className="process-console-mini" style={{ 
+                            background: '#050510', 
+                            border: '1px solid var(--accent)', 
+                            borderRadius: '8px', 
+                            padding: '12px', 
+                            marginBottom: '15px',
+                            fontFamily: 'monospace',
+                            fontSize: '11px',
+                            color: '#00ff99',
+                            maxHeight: '150px',
+                            overflowY: 'auto'
+                        }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', borderBottom: '1px solid rgba(0,255,153,0.2)', paddingBottom: '4px' }}>
+                                <span style={{ fontWeight: 'bold' }}>CONSOLA DE PROCESO LIVE</span>
+                                <X size={12} style={{ cursor: 'pointer' }} onClick={() => setShowProcessConsole(false)} />
+                            </div>
+                            {processLogs.map((log, i) => (
+                                <div key={i} style={{ marginBottom: '2px', wordBreak: 'break-all' }}>{log}</div>
+                            ))}
+                        </div>
+                    )}
 
                     {/* ── Notification Dashboard (Centro de Prioridades) ── */}
                     {fichas.length > 0 && (
@@ -400,20 +571,42 @@ const FichasModule = ({ showToast }) => {
                             <div
                                 key={f.id}
                                 className={`ficha-item ${selectedFicha?.id === f.id ? 'active' : ''} ${!f.revisada ? 'unreviewed' : ''} priority-${f.prioridad || 3}`}
-                                onClick={() => setSelectedFicha(f)}
+                                onClick={() => {
+                                    setSelectedFicha(f);
+                                    if (window.electronAPI?.fichas?.markOpened) {
+                                        window.electronAPI.fichas.markOpened(f.id);
+                                    }
+                                }}
                             >
                                 <div className="ficha-item-header">
                                     <span className="ficha-date">
-                                        {new Date(f.createdAt).toLocaleDateString()}
+                                        {new Date(f.createdAt).toLocaleDateString()} — {new Date(f.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                     </span>
+                                    {f.source_channel && (
+                                        <span className={`channel-badge ${f.source_channel}`}>
+                                            {f.source_channel === 'whatsapp' ? 'WA' : f.source_channel === 'telegram' ? 'TG' : 'APP'}
+                                        </span>
+                                    )}
                                     {f.categoria && <span className="ficha-category-badge">{f.categoria}</span>}
                                 </div>
                                 <h4 className="ficha-title">{f.titulo}</h4>
                                 <div className="ficha-tags-mini">
                                     <span className="tag-mini">{f.nivel}</span>
-                                    <span className="tag-mini">{f.idioma}</span>
-                                    {f.prioridad <= 2 && <AlertCircle size={12} color="#ff4d4d" />}
-                                    {f.videoName && <Film size={12} style={{ opacity: 0.5 }} />}
+                                    <div className="ficha-item-actions" style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                                        <button 
+                                            className="btn-preview-mini" 
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                setPreviewFicha(f);
+                                            }}
+                                            title="Vista rápida"
+                                            style={{ background: 'none', border: 'none', color: 'var(--accent)', cursor: 'pointer', padding: 0 }}
+                                        >
+                                            <Sparkles size={12} />
+                                        </button>
+                                        {f.prioridad <= 2 && <AlertCircle size={12} color="#ff4d4d" />}
+                                        {f.videoName && <Film size={12} style={{ opacity: 0.5 }} />}
+                                    </div>
                                 </div>
                             </div>
                         ))
@@ -444,6 +637,16 @@ const FichasModule = ({ showToast }) => {
                                     {selectedFicha.categoria && <span className="tag-source">{selectedFicha.categoria}</span>}
                                     <span className="tag-type">Nivel {selectedFicha.nivel || 'Intermedio'}</span>
                                     <span className="detail-date">{new Date(selectedFicha.createdAt).toLocaleDateString()} — {selectedFicha.idioma?.toUpperCase()}</span>
+                                    {selectedFicha.source_channel && (
+                                        <span className={`channel-tag ${selectedFicha.source_channel}`}>
+                                            Canal: {selectedFicha.source_channel.toUpperCase()}
+                                        </span>
+                                    )}
+                                    {selectedFicha.last_opened_at && (
+                                        <span className="detail-date" style={{ color: 'var(--accent-2)', opacity: 0.8 }}>
+                                            • Abierta: {new Date(selectedFicha.last_opened_at).toLocaleString()}
+                                        </span>
+                                    )}
                                 </div>
                                 <h1 className="detail-title">{selectedFicha.titulo}</h1>
                             </div>

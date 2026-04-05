@@ -85,10 +85,14 @@ const NotesModule = ({ showToast }) => {
     };
 
     // ── Filter ──
-    const filteredNotes = notes.filter(n =>
-        n.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        n.content.toLowerCase().includes(searchQuery.toLowerCase())
-    );
+    const filteredNotes = notes.filter(n => {
+        const title = n.title || '';
+        const content = n.content || '';
+        const matchesSearch =
+            title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+            content.toLowerCase().includes(searchQuery.toLowerCase());
+        return matchesSearch;
+    });
 
     return (
         <div className="notes-module">

@@ -12,9 +12,6 @@ class ErrorBoundary extends React.Component {
 
     componentDidCatch(error, errorInfo) {
         console.error('[React ErrorBoundary]', error, errorInfo);
-        if (window.electronAPI?.clawbot?.onError) {
-            window.electronAPI.clawbot.sendCommand(`ERROR_REPORT: ${error.toString()} - ${JSON.stringify(errorInfo)}`);
-        }
     }
 
     render() {
@@ -32,8 +29,8 @@ class ErrorBoundary extends React.Component {
                     textAlign: 'center',
                     fontFamily: 'monospace'
                 }}>
-                    <h1>⚠️ VECTRON CRITICAL ERROR</h1>
-                    <p style={{ color: '#9090b0', marginBottom: '20px' }}>Señor, un fallo en el renderizado ha ocurrido.</p>
+                    <h1>⚠️ SISTEMA: ERROR CRÍTICO</h1>
+                    <p style={{ color: '#9090b0', marginBottom: '20px' }}>Un fallo en el renderizado ha ocurrido.</p>
                     <pre style={{
                         background: '#1a1a2e',
                         padding: '20px',

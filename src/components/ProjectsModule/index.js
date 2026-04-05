@@ -93,11 +93,16 @@ const ProjectsModule = ({ showToast }) => {
     };
 
     // ── Filter ──
-    const filteredProjects = projects.filter(p =>
-        p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        p.path.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (p.notes && p.notes.toLowerCase().includes(searchQuery.toLowerCase()))
-    );
+    const filteredProjects = projects.filter(p => {
+        const name = p.name || '';
+        const path = p.path || '';
+        const notes = p.notes || '';
+        const matchesSearch =
+            name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+            path.toLowerCase().includes(searchQuery.toLowerCase()) ||
+            notes.toLowerCase().includes(searchQuery.toLowerCase());
+        return matchesSearch;
+    });
 
     return (
         <div className="projects-module">
@@ -150,7 +155,7 @@ const ProjectsModule = ({ showToast }) => {
                                     <div className="project-actions">
                                         <button className="btn-icon-tiny" title="Editar notas" onClick={() => setEditingProject(project)}><Edit3 size={14} /></button>
                                         <button className="btn-icon-tiny" title="Abrir en Finder" onClick={() => window.electronAPI.projects.openFinder(project.path)}><Folder size={14} /></button>
-                                        <button className={`btn-icon-tiny ${project.monitoring ? 'active-pulse' : ''}`} title="Monitorizar con Clawbot" onClick={() => window.electronAPI.projects.update(project.id, { monitoring: !project.monitoring })}><Cpu size={14} /></button>
+                                        <button className={`btn-icon-tiny ${project.monitoring ? 'active-pulse' : ''}`} title="Monitorizar con IA" onClick={() => window.electronAPI.projects.update(project.id, { monitoring: !project.monitoring })}><Cpu size={14} /></button>
                                         <button className="btn-icon-tiny btn-danger-tiny" title="Eliminar" onClick={() => handleDeleteProject(project.id)}><Trash2 size={14} /></button>
                                     </div>
                                 </div>

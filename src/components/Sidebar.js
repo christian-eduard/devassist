@@ -4,40 +4,30 @@ import {
     FileText,
     Bot,
     Settings,
-    MessageSquare,
     Sun,
     Moon,
-    Home,
     Cpu,
-    Bell
+    Bell,
+    Brain,
+    Users2
 } from 'lucide-react';
 import './Sidebar.css';
 
 const Sidebar = ({
     activeModule,
     onNavigate,
-    clawbotActive,
-    onClawbotClick,
     theme,
     onToggleTheme,
     systemStatus,
-    isListening,
-    isThinking,
-    isSpeaking,
-    onToggleListen,
-    audioStream,
     notificationCount,
-    onToggleNC,
-    sentiment
+    onToggleNC
 }) => {
     const items = [
         { id: 'projects', label: 'Proyectos', icon: <Zap size={18} /> },
-        { id: 'fichas', label: 'Vault', icon: <Book size={18} /> },
+        { id: 'fichas', label: 'Neurex', icon: <Brain size={18} /> },
+        { id: 'agents', label: 'Agentes', icon: <Users2 size={18} /> },
         { id: 'notes', label: 'Notas', icon: <FileText size={18} /> },
         { id: 'aihub', label: 'AI Hub', icon: <Bot size={18} /> },
-        { id: 'office', label: 'Sede Central', icon: <Home size={18} /> },
-        { id: 'clawbot', label: 'Clawbot', icon: <MessageSquare size={18} /> },
-        { id: 'capabilities', label: 'Capacidades', icon: <Cpu size={18} /> },
         { id: 'logs', label: 'Logs', icon: <FileText size={18} /> },
         { id: 'settings', label: 'Ajustes', icon: <Settings size={18} /> },
     ];
@@ -53,7 +43,7 @@ const Sidebar = ({
                     <Bell size={18} className={notificationCount > 0 ? 'has-notifications' : ''} />
                     {notificationCount > 0 && <span className="nc-badge">{notificationCount}</span>}
                 </div>
-                <div className={`system-pulse ${isHealthy ? 'healthy' : 'error'}`} title="Estado del Sistema VECTRON" />
+                <div className={`system-pulse ${isHealthy ? 'healthy' : 'error'}`} title="Estado del Sistema" />
             </div>
 
             <nav className="sidebar-nav">
@@ -74,10 +64,6 @@ const Sidebar = ({
                 <button className="theme-toggle" onClick={onToggleTheme} title="Cambiar tema">
                     {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
                 </button>
-                <div className="clawbot-status" onClick={onClawbotClick}>
-                    <div className={`status-dot ${clawbotActive ? 'active' : 'inactive'}`} title={clawbotActive ? 'Clawbot activo' : 'Clawbot inactivo'} />
-                    <span className="status-label">Clawbot</span>
-                </div>
             </div>
         </aside>
     );

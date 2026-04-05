@@ -1,11 +1,9 @@
-const fs = require('fs');
-const path = require('path');
-
+const { GoogleGenerativeAI } = require('@google/generative-ai');
 const { loadConfig, saveConfig } = require('./config');
 
-module.exports = function registerAIHandlers(ipcMain, dataDir) {
+module.exports = function registerAIHandlers(ipcMain) {
     ipcMain.handle('ai:get-config', async () => {
-        const config = loadConfig(dataDir);
+        const config = await loadConfig();
         return {
             gemini: config.gemini || {},
             aiAssignments: config.aiAssignments || {},
@@ -15,44 +13,25 @@ module.exports = function registerAIHandlers(ipcMain, dataDir) {
     });
 
     ipcMain.handle('ai:save-gemini-config', async (_event, geminiConfig) => {
-        const config = loadConfig(dataDir);
+        const config = await loadConfig();
         config.gemini = { ...config.gemini, ...geminiConfig };
-        saveConfig(dataDir, config);
+        await saveConfig(config);
         return { ok: true };
     });
 
     ipcMain.handle('ai:test-gemini', async () => {
         try {
-            const config = loadConfig(dataDir);
+            const config = await loadConfig();
+            const apiKey = config.gemini?.apiKey || config.apiKeys?.gemini;
 
-            if (config.gemini?.apiKey) {
-                const { GoogleGenerativeAI } = require('@google/generative-ai');
-                const genAI = new GoogleGenerativeAI(config.gemini.apiKey);
-                const model = genAI.getGenerativeModel({ model: config.gemini.model || 'gemini-2.0-flash-001' });
-                const result = await model.generateContent('Responde solo con: OK');
-                return { ok: true, response: result.response.text().trim() };
-            }
+            if (!apiKey) return { ok: false, error: 'API Key de Gemini no configurada.' };
 
-            if (!config.gemini?.credentialsPath || !config.gemini?.project) {
-                return { ok: false, error: 'API Key o Credenciales de Gemini no configuradas.' };
-            }
-
-            process.env.GOOGLE_APPLICATION_CREDENTIALS = config.gemini.credentialsPath;
-
-            const { VertexAI } = require('@google-cloud/vertexai');
-            const vertexAI = new VertexAI({
-                project: config.gemini.project,
-                location: config.gemini.location || 'us-central1',
-            });
-
-            const model = vertexAI.getGenerativeModel({
-                model: config.gemini.model || 'gemini-2.0-flash-001',
-            });
-
+            const genAI = new GoogleGenerativeAI(apiKey);
+            const modelName = config.gemini.model || 'gemini-1.5-flash';
+            const model = genAI.getGenerativeModel({ model: modelName });
+            
             const result = await model.generateContent('Responde solo con: OK');
-            const text = result.response.candidates[0].content.parts[0].text;
-
-            return { ok: true, response: text.trim() };
+            return { ok: true, response: result.response.text().trim() };
         } catch (err) {
             return { ok: false, error: err.message };
         }
@@ -60,7 +39,7 @@ module.exports = function registerAIHandlers(ipcMain, dataDir) {
 
     ipcMain.handle('ai:test-groq', async () => {
         try {
-            const config = loadConfig(dataDir);
+            const config = await loadConfig();
             const apiKey = config.apiKeys?.groq;
             if (!apiKey) return { ok: false, error: 'API Key de Groq no configurada.' };
 
@@ -87,7 +66,7 @@ module.exports = function registerAIHandlers(ipcMain, dataDir) {
 
     ipcMain.handle('ai:test-openrouter', async () => {
         try {
-            const config = loadConfig(dataDir);
+            const config = await loadConfig();
             const apiKey = config.apiKeys?.openrouter;
             if (!apiKey) return { ok: false, error: 'API Key de OpenRouter no configurada.' };
 
@@ -100,7 +79,7 @@ module.exports = function registerAIHandlers(ipcMain, dataDir) {
                     'X-Title': 'DevAssist'
                 },
                 body: JSON.stringify({
-                    model: 'google/gemini-2.0-flash-001',
+                    model: 'google/gemini-flash-1.5',
                     messages: [{ role: 'user', content: 'Say OK' }],
                     max_tokens: 10
                 })
@@ -116,7 +95,7 @@ module.exports = function registerAIHandlers(ipcMain, dataDir) {
 
     ipcMain.handle('ai:test-openai', async () => {
         try {
-            const config = loadConfig(dataDir);
+            const config = await loadConfig();
             const apiKey = config.apiKeys?.openai;
             if (!apiKey) return { ok: false, error: 'API Key de OpenAI no configurada.' };
 
@@ -143,7 +122,7 @@ module.exports = function registerAIHandlers(ipcMain, dataDir) {
 
     ipcMain.handle('ai:test-huggingface', async () => {
         try {
-            const config = loadConfig(dataDir);
+            const config = await loadConfig();
             const apiKey = config.apiKeys?.huggingface;
             if (!apiKey) return { ok: false, error: 'Token de Hugging Face no configurado.' };
 
@@ -170,79 +149,6 @@ module.exports = function registerAIHandlers(ipcMain, dataDir) {
         }
     });
 
-    ipcMain.handle('ai:test-elevenlabs', async () => {
-        try {
-            const config = loadConfig(dataDir);
-            const apiKey = config.apiKeys?.elevenlabs;
-            if (!apiKey) return { ok: false, error: 'API Key de ElevenLabs no configurada.' };
-
-            const response = await fetch('https://api.elevenlabs.io/v1/user', {
-                method: 'GET',
-                headers: { 'xi-api-key': apiKey }
-            });
-
-            if (!response.ok) {
-                const errData = await response.json();
-                return { ok: false, error: errData.detail?.status || 'Error en ElevenLabs' };
-            }
-
-            const data = await response.json();
-            return { ok: true, response: `Suscripción: ${data.subscription.tier}` };
-        } catch (err) {
-            return { ok: false, error: err.message };
-        }
-    });
-
-    ipcMain.handle('ai:synthesize-speech', async (_event, text, options = {}) => {
-        const { provider = 'elevenlabs' } = options;
-
-        try {
-            const config = loadConfig(dataDir);
-
-            if (provider === 'elevenlabs') {
-                const apiKey = config.apiKeys?.elevenlabs;
-                if (!apiKey) return { ok: false, error: 'API Key de ElevenLabs no configurada.' };
-
-                // Voice ID: opciones del caller > config de DevAssist > default ElevenLabs
-                const voiceId = options.voiceId
-                    || config.clawbot?.elevenlabs?.voiceId
-                    || 'LlZr3QuzbW4WrPjgATHG';
-
-                const controller = new AbortController();
-                const timeoutId = setTimeout(() => controller.abort(), 6000);
-
-                const response = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`, {
-                    method: 'POST',
-                    headers: {
-                        'xi-api-key': apiKey,
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        text,
-                        model_id: 'eleven_multilingual_v2',
-                        voice_settings: { stability: 0.5, similarity_boost: 0.75 }
-                    }),
-                    signal: controller.signal
-                });
-
-                clearTimeout(timeoutId);
-                if (!response.ok) {
-                    const errData = await response.json();
-                    return { ok: false, error: errData.detail?.status || 'Error en ElevenLabs' };
-                }
-
-                const arrayBuffer = await response.arrayBuffer();
-                return { ok: true, audioBase64: Buffer.from(arrayBuffer).toString('base64') };
-            }
-
-            // Fallback a Gemini
-            return { ok: false, error: 'Proveedor TTS no soportado o en desarrollo.' };
-        } catch (err) {
-            return { ok: false, error: err.message };
-        }
-    });
-
-
     ipcMain.handle('ai:fetch-openrouter-models', async () => {
         try {
             const res = await fetch('https://openrouter.ai/api/v1/models');
@@ -257,7 +163,7 @@ module.exports = function registerAIHandlers(ipcMain, dataDir) {
     });
 
     ipcMain.handle('ai:save-provider', async (_event, provider) => {
-        const config = loadConfig(dataDir);
+        const config = await loadConfig();
         if (!config.providers) config.providers = [];
         const idx = config.providers.findIndex((p) => p.id === provider.id);
         if (idx >= 0) {
@@ -265,66 +171,61 @@ module.exports = function registerAIHandlers(ipcMain, dataDir) {
         } else {
             config.providers.push(provider);
         }
-        saveConfig(dataDir, config);
+        await saveConfig(config);
         return { ok: true };
     });
 
     ipcMain.handle('ai:update-assignment', async (_event, fnName, assignment) => {
-        const config = loadConfig(dataDir);
+        const config = await loadConfig();
         if (!config.aiAssignments) config.aiAssignments = {};
         config.aiAssignments[fnName] = assignment;
-        saveConfig(dataDir, config);
+        await saveConfig(config);
         return { ok: true };
     });
 
-    ipcMain.handle('ai:live-chat', async (_event, audioBufferB64) => {
+    ipcMain.handle('ai:test-vertex', async () => {
         try {
-            const config = loadConfig(dataDir);
-            const apiKey = config.gemini?.apiKey;
-            if (!apiKey) return { ok: false, error: "No Gemini API Key" };
-
-            let systemInstruction = "Eres VECTRON, el asistente personal avanzado de Chris.";
-            try {
-                const soulText = fs.readFileSync(path.join(os.homedir(), '.openclaw/workspace/SOUL.md'), 'utf8');
-                systemInstruction = soulText;
-            } catch (e) {
-                // Not fatal
-            }
-
-            const { GoogleGenAI } = require('@google/genai');
-            const ai = new GoogleGenAI({ apiKey });
-
-            // Note: Currently @google/genai may use string "TEXT" instead of Modality.TEXT
-            const session = await ai.live.connect({
-                model: "gemini-3.1-pro-preview",
-                config: {
-                    responseModalities: ["TEXT"],
-                    systemInstruction: { parts: [{ text: systemInstruction }] }
-                }
+            const config = await loadConfig();
+            const { VertexAI } = require('@google-cloud/vertexai');
+            const project = config.gemini?.project || 'project-7db9cc02-a444-4f66-883';
+            const location = config.gemini?.location || 'us-central1';
+            
+            const vertexAI = new VertexAI({ project, location });
+            const generativeModel = vertexAI.getGenerativeModel({ model: config.gemini?.model || 'gemini-1.5-flash' });
+            
+            const streamingResp = await generativeModel.generateContent({
+                contents: [{ role: 'user', parts: [{ text: 'Responde solo con: VERTEX_OK' }] }]
             });
-
-            await session.send({
-                realtimeInput: {
-                    mediaChunks: [{
-                        data: audioBufferB64,
-                        mimeType: "audio/pcm;rate=16000"
-                    }]
-                }
-            });
-
-            let fullResponse = "";
-            for await (const message of session.receive()) {
-                if (message.text) fullResponse += message.text;
-                if (message.serverContent?.modelTurn?.parts) {
-                    for (const p of message.serverContent.modelTurn.parts) {
-                        if (p.text) fullResponse += p.text;
-                    }
-                }
-            }
-            // we probably only need one round for this prompt
-            return { ok: true, text: fullResponse };
+            const response = await streamingResp.response;
+            return { ok: true, response: response.candidates[0].content.parts[0].text.trim() };
         } catch (err) {
-            console.error(err);
+            return { ok: false, error: err.message };
+        }
+    });
+
+    ipcMain.handle('ai:generate-embedding', async (_event, text) => {
+        try {
+            const config = await loadConfig();
+            const apiKey = config.apiKeys?.openai;
+            if (!apiKey) throw new Error('API Key de OpenAI no configurada para Embeddings');
+
+            const response = await fetch('https://api.openai.com/v1/embeddings', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${apiKey}`
+                },
+                body: JSON.stringify({
+                    model: 'text-embedding-3-small',
+                    input: text
+                })
+            });
+
+            const data = await response.json();
+            if (data.error) throw new Error(data.error.message);
+            
+            return { ok: true, embedding: data.data[0].embedding };
+        } catch (err) {
             return { ok: false, error: err.message };
         }
     });

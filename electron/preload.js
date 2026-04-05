@@ -5,16 +5,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
   config: {
     load: () => ipcRenderer.invoke('config:load'),
     save: (config) => ipcRenderer.invoke('config:save', config),
-    checkClawbot: () => ipcRenderer.invoke('config:check-clawbot'),
     checkYtdlp: () => ipcRenderer.invoke('config:check-ytdlp'),
-    openClawbotSite: () => ipcRenderer.invoke('config:open-clawbot-site'),
-    installSkillClawbot: () => ipcRenderer.invoke('config:install-skill-clawbot'),
     selectCredentialsFile: () => ipcRenderer.invoke('config:select-credentials-file'),
     getCacheStats: () => ipcRenderer.invoke('config:get-cache-stats'),
     clearCache: () => ipcRenderer.invoke('config:clear-cache'),
     openUrl: (url) => ipcRenderer.invoke('config:open-url', url),
-    getOpenClawAi: () => ipcRenderer.invoke('config:get-openclaw-ai'),
-    saveOpenClawAi: (updates) => ipcRenderer.invoke('config:save-openclaw-ai', updates),
   },
 
   // ── Projects ──
@@ -41,13 +36,18 @@ contextBridge.exposeInMainWorld('electronAPI', {
     researchPoint: (point) => ipcRenderer.invoke('fichas:research-point', point),
     startWatcher: (folderPath) => ipcRenderer.invoke('fichas:start-watcher', folderPath),
     stopWatcher: () => ipcRenderer.invoke('fichas:stop-watcher'),
+    markOpened: (id) => ipcRenderer.invoke('fichas:mark-opened', id),
     onNewVideoDetected: (callback) => {
       const handler = (_event, data) => callback(data);
       ipcRenderer.on('fichas:new-video-detected', handler);
       return () => ipcRenderer.removeListener('fichas:new-video-detected', handler);
     },
+    onProcessProgress: (callback) => {
+      const handler = (_event, data) => callback(data);
+      ipcRenderer.on('fichas:process-progress', handler);
+      return () => ipcRenderer.removeListener('fichas:process-progress', handler);
+    },
   },
-
 
   // ── Notes ──
   notes: {
@@ -65,110 +65,27 @@ contextBridge.exposeInMainWorld('electronAPI', {
     testOpenRouter: () => ipcRenderer.invoke('ai:test-openrouter'),
     testOpenAI: () => ipcRenderer.invoke('ai:test-openai'),
     testHuggingFace: () => ipcRenderer.invoke('ai:test-huggingface'),
-    testElevenLabs: () => ipcRenderer.invoke('ai:test-elevenlabs'),
-    synthesizeSpeech: (text, voiceId) => ipcRenderer.invoke('ai:synthesize-speech', text, voiceId),
     fetchOpenRouterModels: () => ipcRenderer.invoke('ai:fetch-openrouter-models'),
     saveProvider: (provider) => ipcRenderer.invoke('ai:save-provider', provider),
     updateAssignment: (fnName, assignment) => ipcRenderer.invoke('ai:update-assignment', fnName, assignment),
-    transcribeAudio: (buffer) => ipcRenderer.invoke('ai:transcribe-audio', buffer),
-    analyzeVision: (imageB64, prompt) => ipcRenderer.invoke('ai:analyze-vision', imageB64, prompt),
-    liveChat: (bufferB64) => ipcRenderer.invoke('ai:live-chat', bufferB64)
+    analyzeVision: (imageB64, prompt) => ipcRenderer.invoke('ai:analyze-vision', imageB64, prompt)
   },
 
-  // ── Clawbot ──
-  clawbot: {
-    telegramStart: (token) => ipcRenderer.invoke('clawbot:telegram-start', token),
-    telegramStop: () => ipcRenderer.invoke('clawbot:telegram-stop'),
-    telegramTest: (token) => ipcRenderer.invoke('clawbot:telegram-test', token),
-
-    whatsappStart: (groupName) => ipcRenderer.invoke('clawbot:whatsapp-start', groupName),
-    whatsappStop: () => ipcRenderer.invoke('clawbot:whatsapp-stop'),
-    whatsappGroups: () => ipcRenderer.invoke('clawbot:whatsapp-groups'),
-    getWAStatus: () => ipcRenderer.invoke('clawbot:wa-status'),
-
-    getHistory: () => ipcRenderer.invoke('clawbot:get-history'),
-    getStats: () => ipcRenderer.invoke('clawbot:get-stats'),
-    clearHistory: () => ipcRenderer.invoke('clawbot:clear-history'),
-
-    getSkills: () => ipcRenderer.invoke('clawbot:get-skills'),
-    saveSkill: (skill) => ipcRenderer.invoke('clawbot:save-skill', skill),
-    deleteSkill: (name) => ipcRenderer.invoke('clawbot:delete-skill', name),
-    getLogs: () => ipcRenderer.invoke('clawbot:get-logs'),
-    getSystemStatus: () => ipcRenderer.invoke('clawbot:get-system-status'),
-    restartVoice: () => ipcRenderer.invoke('clawbot:restart-voice'),
-    sendCommand: (text) => ipcRenderer.invoke('clawbot:send-command', text),
-
-    // Event listeners
-    onTelegramLinked: (callback) => {
-      const handler = (_event, data) => callback(data);
-      ipcRenderer.on('clawbot:telegram-linked', handler);
-      return () => ipcRenderer.removeListener('clawbot:telegram-linked', handler);
-    },
-    onWhatsappQr: (callback) => {
-      const handler = (_event, data) => callback(data);
-      ipcRenderer.on('clawbot:whatsapp-qr', handler);
-      return () => ipcRenderer.removeListener('clawbot:whatsapp-qr', handler);
-    },
-    onWhatsappReady: (callback) => {
-      const handler = (_event, data) => callback(data);
-      ipcRenderer.on('clawbot:whatsapp-ready', handler);
-      return () => ipcRenderer.removeListener('clawbot:whatsapp-ready', handler);
-    },
-    onMessageReceived: (callback) => {
-      const handler = (_event, data) => callback(data);
-      ipcRenderer.on('clawbot:message-received', handler);
-      return () => ipcRenderer.removeListener('clawbot:message-received', handler);
-    },
-    onMessageSent: (callback) => {
-      const handler = (_event, data) => callback(data);
-      ipcRenderer.on('clawbot:message-sent', handler);
-      return () => ipcRenderer.removeListener('clawbot:message-sent', handler);
-    },
-    onNewVideo: (callback) => {
-      const handler = (_event, data) => callback(data);
-      ipcRenderer.on('clawbot:new-video', handler);
-      return () => ipcRenderer.removeListener('clawbot:new-video', handler);
-    },
-    onProjectEvent: (callback) => {
-      const handler = (_event, data) => callback(data);
-      ipcRenderer.on('clawbot:project-event', handler);
-      return () => ipcRenderer.removeListener('clawbot:project-event', handler);
-    },
-    onTikTokProcessing: (callback) => {
-      const handler = (_event, data) => callback(data);
-      ipcRenderer.on('clawbot:tiktok-processing', handler);
-      return () => ipcRenderer.removeListener('clawbot:tiktok-processing', handler);
-    },
-    onFichaCreated: (callback) => {
-      const handler = (_event, data) => callback(data);
-      ipcRenderer.on('clawbot:ficha-created', handler);
-      return () => ipcRenderer.removeListener('clawbot:ficha-created', handler);
-    },
-    onStatus: (callback) => {
-      const handler = (_event, data) => callback(data);
-      ipcRenderer.on('clawbot:status', handler);
-      return () => ipcRenderer.removeListener('clawbot:status', handler);
-    },
+  system: {
+    getLogs: () => ipcRenderer.invoke('system:get-logs'),
+    getSystemStatus: () => ipcRenderer.invoke('system:get-system-status'),
     onNotify: (callback) => {
       const handler = (_event, data) => callback(data);
-      ipcRenderer.on('vectron:notify', handler);
-      return () => ipcRenderer.removeListener('vectron:notify', handler);
-    },
-    onError: (callback) => {
-      const handler = (_event, data) => callback(data);
-      ipcRenderer.on('clawbot:error', handler);
-      return () => ipcRenderer.removeListener('clawbot:error', handler);
-    },
-    onResponseChunk: (callback) => {
-      const handler = (_event, data) => callback(data);
-      ipcRenderer.on('clawbot:response-chunk', handler);
-      return () => ipcRenderer.removeListener('clawbot:response-chunk', handler);
+      ipcRenderer.on('system:notify', handler);
+      return () => ipcRenderer.removeListener('system:notify', handler);
     },
   },
 
   // ── Notifications ──
   notifications: {
+    load: () => ipcRenderer.invoke('notifications:load'),
     save: (notifications) => ipcRenderer.invoke('notifications:save', notifications),
+    updateNotes: (id, notes) => ipcRenderer.invoke('notifications:update-notes', id, notes),
   },
 
   // ── Vision (V5.0) ──
@@ -182,12 +99,30 @@ contextBridge.exposeInMainWorld('electronAPI', {
     writeFile: (path, content) => ipcRenderer.invoke('fs:writeFile', path, content),
   },
 
-  // ── Agents ──
-  agents: {
-    getAll: () => ipcRenderer.invoke('agents:get-all'),
-    toggle: (agentId) => ipcRenderer.invoke('agents:toggle', agentId),
-    updateConfig: (agentId, config) => ipcRenderer.invoke('agents:update-config', { agentId, config }),
-    getLogs: (agentId) => ipcRenderer.invoke('agents:get-logs', agentId),
-    restart: (agentId) => ipcRenderer.invoke('agents:restart', agentId),
+  // ── Clawbot ──
+  clawbot: {
+    syncConfig: (config) => ipcRenderer.invoke('clawbot:sync-config', config),
+    getWaStatus: () => ipcRenderer.invoke('clawbot:get-wa-status'),
+    onWaStatus: (callback) => {
+      const handler = (_event, data) => callback(data);
+      ipcRenderer.on('clawbot:wa-status', handler);
+      return () => ipcRenderer.removeListener('clawbot:wa-status', handler);
+    },
+    onWaQr: (callback) => {
+      const handler = (_event, data) => callback(data);
+      ipcRenderer.on('clawbot:wa-qr', handler);
+      return () => ipcRenderer.removeListener('clawbot:wa-qr', handler);
+    }
   },
+
+  // ── Agents / TESS ──
+  agents: {
+    load: () => ipcRenderer.invoke('agents:load'),
+    save: (agentData) => ipcRenderer.invoke('agents:save', agentData),
+    delete: (agentId) => ipcRenderer.invoke('agents:delete', agentId),
+    chat: (payload) => ipcRenderer.invoke('agents:chat', payload),
+    getMemory: (payload) => ipcRenderer.invoke('agents:get-memory', payload),
+    clearMemory: (agentId) => ipcRenderer.invoke('agents:clear-memory', agentId),
+  },
+
 });

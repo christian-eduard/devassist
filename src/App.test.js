@@ -5,16 +5,9 @@ import { TextEncoder, TextDecoder } from 'util';
 
 // Mock de Electron API
 window.electronAPI = {
-    clawbot: {
-        sendCommand: jest.fn(),
-        getSystemStatus: jest.fn().mockResolvedValue({ gateway: 'online', ai: 'online' }),
-        onResponseChunk: jest.fn().mockReturnValue(() => { }),
-        onMessageSent: jest.fn().mockReturnValue(() => { }),
+    system: {
+        getSystemStatus: jest.fn().mockResolvedValue({ status: 'online', ai: 'online' }),
         onNotify: jest.fn().mockReturnValue(() => { }),
-        onNewVideo: jest.fn().mockReturnValue(() => { }),
-        onProjectEvent: jest.fn().mockReturnValue(() => { }),
-        onFichaCreated: jest.fn().mockReturnValue(() => { }),
-        abortResponse: jest.fn(),
     },
     notifications: {
         load: jest.fn().mockResolvedValue([]),

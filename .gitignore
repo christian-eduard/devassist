@@ -128,3 +128,14 @@ build/
 
 # OpenClaw specifics
 whatsapp-auth/
+
+# Data directories (sensitive / large)
+.devassist/
+.wwebjs_cache/
+postgres_data/
+node_modules_broken/
+
+# WASM / ORT binaries (large, not needed in source)
+public/ort*.wasm
+public/ort*.mjs
+public/ort*.mjs

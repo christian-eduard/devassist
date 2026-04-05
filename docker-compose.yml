@@ -1,0 +1,19 @@
+version: '3.8'
+services:
+  devassist-db:
+    image: ankane/pgvector:latest
+    container_name: devassist-postgres
+    restart: always
+    ports:
+      - "54325:5432"
+    environment:
+      POSTGRES_USER: devassist_admin
+      POSTGRES_PASSWORD: devassist_secure_pass
+      POSTGRES_DB: devassist_vault
+    volumes:
+      - ./postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U devassist_admin -d devassist_vault"]
+      interval: 10s
+      timeout: 5s
+      retries: 5

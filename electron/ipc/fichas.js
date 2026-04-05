@@ -2,25 +2,62 @@ const fs = require('fs');
 const path = require('path');
 const os = require('os');
 const logger = require('./logger');
+const { exec } = require('child_process');
+const util = require('util');
+const execAsync = util.promisify(exec);
 
-const FICHAS_FILE = 'fichas.json';
-const VIDEOS_DIR = path.join(os.homedir(), '.devassist', 'videos');
+const db = require('../db');
+const { loadConfig } = require('./config');
 
-function loadFichas(dataDir) {
-    const filePath = path.join(dataDir, FICHAS_FILE);
+const extractJSON = (text) => {
+    if (!text) return null;
     try {
-        if (fs.existsSync(filePath)) {
-            return JSON.parse(fs.readFileSync(filePath, 'utf-8'));
+        const cleanText = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+        
+        // Buscar el inicio y fin de una estructura JSON { } o [ ]
+        const firstBrace = cleanText.indexOf('{');
+        const lastBrace = cleanText.lastIndexOf('}');
+        
+        const firstBracket = cleanText.indexOf('[');
+        const lastBracket = cleanText.lastIndexOf(']');
+
+        // Determinar qué estructura parece más completa/probable
+        let start = -1;
+        let end = -1;
+
+        if (firstBrace !== -1 && (firstBracket === -1 || firstBrace < firstBracket)) {
+            start = firstBrace;
+            end = lastBrace;
+        } else if (firstBracket !== -1) {
+            start = firstBracket;
+            end = lastBracket;
         }
-    } catch (err) {
-        logger.error('[fichas:load] Error:', err.message);
+
+        if (start !== -1 && end !== -1 && end > start) {
+            const jsonPart = cleanText.substring(start, end + 1);
+            return JSON.parse(jsonPart);
+        }
+        
+        // Si no hay brackets pero el texto parece JSON literal
+        if (cleanText.startsWith('{') || cleanText.startsWith('[')) {
+            return JSON.parse(cleanText);
+        }
+
+        return null; // NO LANZAR ERROR AQUÍ, dejar que el llamador decida
+    } catch (e) {
+        logger.error('[JSON:Extract] Error parsing:', e.message);
+        return null;
     }
-    return [];
+};
+
+function loadFichas() {
+    return db.getFichas();
 }
 
-function saveFichas(dataDir, fichas) {
-    const filePath = path.join(dataDir, FICHAS_FILE);
-    fs.writeFileSync(filePath, JSON.stringify(fichas, null, 2), 'utf-8');
+function saveFichas(fichas) {
+    // Nota: El frontend suele mandar el array completo. En SQLite es mejor guardar la ficha individual que cambia.
+    // Sin embargo, para mantener compatibilidad sin romper el frontend ahora mismo, iteramos.
+    fichas.forEach(f => db.saveFicha(f));
 }
 
 // ── Proyectos de Chris (para matching) ──────────────────────
@@ -28,15 +65,14 @@ function saveFichas(dataDir, fichas) {
 // Ahora se utilizan los proyectos reales cargados desde proyectos.json para el matching y el contexto.
 
 // ── Llamada a Groq API (para investigación profunda) ────────
-async function callGroq(apiKey, prompt) {
+async function callGroq(apiKey, prompt, model = 'llama-3.3-70b-versatile') {
     const https = require('https');
-    const model = 'llama-3.3-70b-versatile';
     const url = 'https://api.groq.com/openai/v1/chat/completions';
 
     const body = JSON.stringify({
         model,
         messages: [{ role: 'user', content: prompt }],
-        temperature: 0.1
+        temperature: 0.2
     });
 
     return new Promise((resolve, reject) => {
@@ -66,15 +102,14 @@ async function callGroq(apiKey, prompt) {
 }
 
 // ── Llamada a OpenRouter (para modelos de ultra-razonamiento) ──
-async function callOpenRouter(apiKey, prompt) {
+async function callOpenRouter(apiKey, prompt, model = 'google/gemini-flash-1.5') {
     const https = require('https');
-    const model = 'deepseek/deepseek-r1:free';
     const url = 'https://openrouter.ai/api/v1/chat/completions';
 
     const body = JSON.stringify({
         model,
         messages: [{ role: 'user', content: prompt }],
-        temperature: 0.1
+        temperature: 0.2
     });
 
     return new Promise((resolve, reject) => {
@@ -84,7 +119,7 @@ async function callOpenRouter(apiKey, prompt) {
                 'Content-Type': 'application/json',
                 'Authorization': `Bearer ${apiKey}`,
                 'HTTP-Referer': 'https://github.com/Chris-v-o/DevAssist',
-                'X-Title': 'DevAssist Agent',
+                'X-Title': 'DevAssist',
                 'Content-Length': Buffer.byteLength(body)
             }
         }, (res) => {
@@ -106,53 +141,13 @@ async function callOpenRouter(apiKey, prompt) {
 }
 
 // ── Motor de Inteligencia Distribuida (Priorización de IAs) ──
-// Orden: 1. Gemini 3.1 Pro → 2. Groq (Llama 3.3 70B) → 3. OpenRouter (DeepSeek R1)
-async function callIntelligentAI(config, prompt) {
-    const keys = getKeys();
-    const geminiKey = keys.gemini || (config.gemini ? config.gemini.apiKey : null);
-    const groqKey = keys.groq || (config.apiKeys ? config.apiKeys.groq : null);
-    const orKey = keys.openrouter || (config.apiKeys ? config.apiKeys.openrouter : null);
-
-    // 1. Gemini 3.1 Pro Preview (Cerebro principal)
-    if (geminiKey) {
-        try {
-            logger.info('[AI:Priority] Utilizando Gemini 3.1 Pro Preview...');
-            return await callGemini(geminiKey, prompt, null, null, 'gemini-3.1-pro-preview');
-        } catch (e) { logger.warn('[AI:Priority] Gemini 3.1 Pro falló:', e.message); }
-    }
-
-    // 2. Groq (Ultra-rápido)
-    if (groqKey) {
-        try {
-            logger.info('[AI:Priority] Utilizando Groq (Llama 3.3 70B)...');
-            return await callGroq(groqKey, prompt);
-        } catch (e) { logger.warn('[AI:Priority] Groq falló:', e.message); }
-    }
-
-    // 3. OpenRouter (DeepSeek R1)
-    if (orKey) {
-        try {
-            logger.info('[AI:Priority] Utilizando OpenRouter (DeepSeek R1)...');
-            return await callOpenRouter(orKey, prompt);
-        } catch (e) { logger.warn('[AI:Priority] OpenRouter falló:', e.message); }
-    }
-
-    throw new Error('Ningún proveedor de IA está configurado o disponible.');
-}
-
-// ── Obtener keys de OpenClaw ─────────────────────────────────
-function getKeys() {
-    try {
-        const ocConfig = JSON.parse(fs.readFileSync(path.join(os.homedir(), '.openclaw/openclaw.json'), 'utf8'));
-        return {
-            gemini: ocConfig?.env?.GOOGLE_API_KEY || ocConfig?.env?.GEMINI_API_KEY,
-            groq: ocConfig?.env?.GROQ_API_KEY
-        };
-    } catch { return {}; }
+// Orden: 1. Gemini 1.5 Pro → 2. Groq (Llama 3.3 70B) → 3. OpenRouter (DeepSeek R1)
+async function callIntelligentAI(config, prompt, onProgress = null) {
+    return await callAI('vault-research', config, prompt, null, onProgress);
 }
 
 // ── Búsqueda web vía DuckDuckGo ──────────────────────────────
-async function callGemini(apiKey, prompt, audioBase64 = null, mimeType = 'audio/mp3', model = 'gemini-2.0-flash') {
+async function callGemini(apiKey, prompt, audioBase64 = null, mimeType = 'audio/mp3', model = 'gemini-1.5-flash') {
     const https = require('https');
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
 
@@ -181,15 +176,196 @@ async function callGemini(apiKey, prompt, audioBase64 = null, mimeType = 'audio/
                 try {
                     const parsed = JSON.parse(data);
                     const text = parsed?.candidates?.[0]?.content?.parts?.[0]?.text;
-                    if (!text) reject(new Error('Gemini sin respuesta: ' + JSON.stringify(parsed?.error || parsed).substring(0, 200)));
+                    if (!text) reject(new Error('Gemini sin respuesta/error: ' + JSON.stringify(parsed?.error || parsed).substring(0, 200)));
                     else resolve(text);
-                } catch (e) { reject(new Error('Parse error Gemini: ' + e.message)); }
+                } catch (e) { 
+                    reject(new Error('Respuesta no-JSON de Gemini (posible error 429/500): ' + data.substring(0, 100))); 
+                }
             });
         });
         req.on('error', reject);
         req.write(body);
         req.end();
     });
+}
+// ── Transcripción con Groq Whisper (Protocolo de contingencia) ──
+async function callGroqWhisper(apiKey, audioBuffer, model = 'whisper-large-v3') {
+    const https = require('https');
+    
+    // Boundary manual para evitar dependencias externas en tiempo real si falla
+    const boundary = '----DevAssistBoundary' + Math.random().toString(16).substring(2);
+    const audioFileName = 'audio.mp3';
+    
+    const postData = Buffer.concat([
+        Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="model"\r\n\r\n${model}\r\n`),
+        Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="${audioFileName}"\r\nContent-Type: audio/mpeg\r\n\r\n`),
+        audioBuffer,
+        Buffer.from(`\r\n--${boundary}--\r\n`)
+    ]);
+
+    return new Promise((resolve, reject) => {
+        const req = https.request('https://api.groq.com/openai/v1/audio/transcriptions', {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${apiKey}`,
+                'Content-Type': `multipart/form-data; boundary=${boundary}`,
+                'Content-Length': postData.length
+            }
+        }, (res) => {
+            let data = '';
+            res.on('data', chunk => data += chunk);
+            res.on('end', () => {
+                try {
+                    const parsed = JSON.parse(data);
+                    if (parsed.text) resolve(parsed.text);
+                    else reject(new Error('Whisper sin texto: ' + JSON.stringify(parsed)));
+                } catch (e) { reject(new Error('Parse error Whisper: ' + e.message)); }
+            });
+        });
+        req.on('error', reject);
+        req.write(postData);
+        req.end();
+    });
+}
+
+// ── Llamada a OpenAI (Protocolo de contingencia) ──
+async function callOpenAI(apiKey, prompt, model = 'gpt-4o-mini') {
+    const https = require('https');
+    const url = 'https://api.openai.com/v1/chat/completions';
+
+    const body = JSON.stringify({
+        model,
+        messages: [{ role: 'user', content: prompt }],
+        temperature: 0.2
+    });
+
+    return new Promise((resolve, reject) => {
+        const req = https.request(url, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${apiKey}`,
+                'Content-Length': Buffer.byteLength(body)
+            }
+        }, (res) => {
+            let data = '';
+            res.on('data', chunk => data += chunk);
+            res.on('end', () => {
+                try {
+                    const parsed = JSON.parse(data);
+                    const text = parsed?.choices?.[0]?.message?.content;
+                    if (!text) reject(new Error('OpenAI sin respuesta: ' + JSON.stringify(parsed?.error || parsed).substring(0, 200)));
+                    else resolve(text);
+                } catch (e) { reject(new Error('Parse error OpenAI: ' + e.message)); }
+            });
+        });
+        req.on('error', reject);
+        req.write(body);
+        req.end();
+    });
+}
+
+async function callAI(taskId, config, prompt, audioBase64 = null, onProgress = null) {
+    const assignments = config.aiAssignments?.[taskId] || { provider: 'gemini', model: 'gemini-2.5-flash' };
+    const initialProvider = assignments.provider;
+    
+    // ── Detección DINÁMICA de proveedores disponibles ──
+    const pool = [initialProvider];
+    const available = [];
+    if (config.apiKeys?.groq) available.push('groq');
+    if (config.apiKeys?.openrouter) available.push('openrouter');
+    if (config.apiKeys?.openai) available.push('openai');
+    if (config.gemini?.apiKey) available.push('gemini');
+    
+    // Lista de proveedores en orden: Asignado -> Groq -> OpenRouter -> OpenAI -> Gemini
+    const fallbacks = [...new Set([...pool, ...available])];
+
+    let lastError = null;
+
+    for (const provider of fallbacks) {
+        try {
+            logger.info(`[AI:Task] Intentando ${taskId} con ${provider}...`);
+            if (onProgress && provider !== initialProvider) {
+                onProgress(`⏳ El proveedor inicial falló. Cambiando a ${provider.toUpperCase()} para no detener el proceso...`);
+            }
+
+            // --- CASO GEMINI ---
+            if (provider === 'gemini') {
+                const apiKey = config.gemini?.apiKey;
+                if (!apiKey) throw new Error('API Key de Gemini no configurada');
+                // Usamos el modelo asignado si el proveedor es Gemini, o el fallback 2.5-flash
+                const targetModel = (provider === initialProvider) ? (assignments.model || 'gemini-2.5-flash') : 'gemini-2.5-flash';
+                return await callGemini(apiKey, prompt, audioBase64, 'audio/mp3', targetModel);
+            } 
+            
+            // --- CASO GROQ (Inmortal si es audio) ---
+            if (provider === 'groq') {
+                const apiKey = config.apiKeys?.groq;
+                if (!apiKey) throw new Error('API Key de Groq no configurada');
+
+                if (taskId === 'vault-transcribe' && audioBase64) {
+                    const statusMsg = "🎙️ [FALLBACK] Usando Whisper (Groq) + Llama (Cerebro)";
+                    logger.info(statusMsg);
+                    if (onProgress) onProgress(statusMsg);
+                    
+                    const audioBuffer = Buffer.from(audioBase64, 'base64');
+                    const rawTranscription = await callGroqWhisper(apiKey, audioBuffer);
+                    const elegantPrompt = `${prompt}\n\nAQUÍ TIENES EL TEXTO BRUTO DEL AUDIO:\n${rawTranscription}`;
+                    return await callGroq(apiKey, elegantPrompt);
+                }
+
+                return await callGroq(apiKey, prompt);
+            } 
+            
+            // --- CASO OPENROUTER (Inmortal si es audio, vía Whisper de Groq si está disponible) ---
+            if (provider === 'openrouter') {
+                const apiKey = config.apiKeys?.openrouter;
+                if (!apiKey) throw new Error('API Key de OpenRouter no configurada');
+
+                if (taskId === 'vault-transcribe' && audioBase64) {
+                    // OpenRouter no tiene audio directo fácil, si Groq está configurado, usamos su Whisper
+                    if (config.apiKeys?.groq) {
+                        if (onProgress) onProgress("🎙️ Usando Whisper (Groq) + DeepSeek (OpenRouter)...");
+                        const audioBuffer = Buffer.from(audioBase64, 'base64');
+                        const rawTranscription = await callGroqWhisper(config.apiKeys.groq, audioBuffer);
+                        const elegantPrompt = `${prompt}\n\nAQUÍ TIENES EL TEXTO BRUTO DEL AUDIO:\n${rawTranscription}`;
+                        return await callOpenRouter(apiKey, elegantPrompt);
+                    }
+                    throw new Error('OpenRouter necesita Groq configurado para transcripción de audio.');
+                }
+
+                return await callOpenRouter(apiKey, prompt);
+            }
+
+            // --- CASO OPENAI (Inmortal si es audio) ---
+            if (provider === 'openai') {
+                const apiKey = config.apiKeys?.openai;
+                if (!apiKey) throw new Error('API Key de OpenAI no configurada');
+
+                if (taskId === 'vault-transcribe' && audioBase64) {
+                    // Si falla Gemini, OpenAI también tiene Whisper, pero usemos Groq Whisper por velocidad si existe
+                    if (onProgress) onProgress("🎙️ Usando Protocolo Inmortal (OpenRoute/OpenAI/Groq)...");
+                    let rawTranscription = "";
+                    if (config.apiKeys?.groq) {
+                         const audioBuffer = Buffer.from(audioBase64, 'base64');
+                         rawTranscription = await callGroqWhisper(config.apiKeys.groq, audioBuffer);
+                    } else {
+                         throw new Error('Necesitas Groq para transcripción de emergencia.');
+                    }
+                    const elegantPrompt = `${prompt}\n\nAQUÍ TIENES EL TEXTO BRUTO DEL AUDIO:\n${rawTranscription}`;
+                    return await callOpenAI(apiKey, elegantPrompt);
+                }
+
+                return await callOpenAI(apiKey, prompt);
+            }
+
+        } catch (err) {
+            lastError = err;
+            logger.warn(`[AI:Task] Falló ${provider}: ${err.message}`);
+        }
+    }
+
+    throw new Error(`Todos los proveedores de IA fallaron. Último error: ${lastError?.message}`);
 }
 
 // ── Búsqueda web vía DuckDuckGo ──────────────────────────────
@@ -245,305 +421,223 @@ function matchProyectos(transcripcion, herramientas, proyectosReales) {
     return matches.sort((a, b) => b.relevancia - a.relevancia).slice(0, 3);
 }
 
+// ── Notificaciones de progreso vía OpenClaw (WhatsApp/Telegram) ──
+async function notifyChannel(message, channel = 'whatsapp') {
+    try {
+        const target = channel === 'telegram' ? 'tg:6541399577' : '34644984173';
+        await execAsync(
+            `npx openclaw message send --channel ${channel} --target "${target}" --message "${message.replace(/"/g, '\\"')}"`,
+            { timeout: 10000 }
+        );
+    } catch (e) {
+        logger.warn(`[Notify] No se pudo notificar por ${channel}: ${e.message}`);
+    }
+}
+
+// ── Detección de URLs duplicadas ──
+async function checkDuplicateUrl(url) {
+    try {
+        const nexus = require('../db_nexus');
+        const result = await nexus.pool.query(
+            "SELECT id, title, created_at, metadata->>'source_channel' as channel FROM fichas WHERE url_original = $1 LIMIT 1",
+            [url]
+        );
+        if (result.rows.length > 0) {
+            return result.rows[0];
+        }
+        return null;
+    } catch (e) {
+        logger.warn(`[Duplicate] Error checking: ${e.message}`);
+        return null;
+    }
+}
+
+// ── Registrar apertura de ficha ──
+async function logFichaOpening(id) {
+    try {
+        const nexus = require('../db_nexus');
+        const now = new Date().toISOString();
+        await nexus.pool.query(
+            'UPDATE fichas SET last_opened_at = $1 WHERE id = $2',
+            [now, id]
+        );
+        logger.info(`[Fichas:Log] Ficha ${id} marcada como abierta a las ${now}`);
+        return true;
+    } catch (e) {
+        logger.error(`[Fichas:Log] Error registrando apertura: ${e.message}`);
+        return false;
+    }
+}
+
 // ── Pipeline TikTok completo (7 etapas) ──────────────────────
-async function processTikTokUrl(url, config) {
-    const { execSync } = require('child_process');
+async function processTikTokUrl(url, config, options = {}, _event = null) {
+    const { onProgress = () => {}, channel = 'unknown' } = options;
     const videosDir = path.join(os.homedir(), '.devassist', 'videos');
     if (!fs.existsSync(videosDir)) fs.mkdirSync(videosDir, { recursive: true });
-
     const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'tiktok-'));
-    const keys = getKeys();
-    const apiKey = keys.gemini || config.gemini?.apiKey;
 
-    if (!apiKey) throw new Error('No se encontró API Key de Gemini. Configúrala en Ajustes.');
+    const sendProgress = (msg) => {
+        if (options.onProgress) options.onProgress(msg);
+        if (_event && _event.sender) _event.sender.send('fichas:process-progress', msg);
+    };
 
-    logger.info(`[TikTok] Pipeline iniciado para Chris: ${url}`);
+    const safeUrl = (url || '').trim();
+    if (!safeUrl.startsWith('http')) {
+        throw new Error('La URL proporcionada no es válida. Debe empezar por http/https.');
+    }
 
+    // ── DETECCIÓN DE DUPLICADOS (Mensaje Extendido) ──
+    const existing = await checkDuplicateUrl(safeUrl);
+    if (existing) {
+        const platform = existing.channel === 'whatsapp' ? 'WhatsApp' : 
+                         existing.channel === 'telegram' ? 'Telegram' : 
+                         'la aplicación (local)';
+        const dateStr = new Date(existing.created_at).toLocaleString('es-ES', { 
+            day: '2-digit', month: '2-digit', year: 'numeric', 
+            hour: '2-digit', minute: '2-digit' 
+        });
+        
+        const msg = `Este enlace ya fue procesado el ${dateStr} vía ${platform}. 
+Título: "${existing.title}"`;
+        
+        sendProgress(msg);
+        logger.info(`[TikTok] Duplicado detectado: ${existing.id} - ${existing.title} [${existing.channel}]`);
+        return { duplicate: true, existingId: existing.id, existingTitle: existing.title, message: msg };
+    }
+
+    logger.info(`[TikTok] [v3-PROGRESS-ENGINE] Pipeline iniciado: ${safeUrl} (canal: ${channel})`);
+    
     try {
-
-        // ── ETAPA 1: Metadatos + descarga video + extracción audio ──
-        logger.info('[TikTok] Etapa 1: Descarga y extracción de audio...');
-
+        // ── ETAPA 1: Descarga y Medios (Async) ──
+        sendProgress(`Etapa 1/4: Descargando medios...`);
         let titulo = 'Video TikTok';
         let autor = 'desconocido';
         try {
-            const meta = execSync(
-                `yt-dlp --impersonate chrome --no-playlist --print "%(title)s|||%(uploader)s" "${url}"`,
-                { encoding: 'utf8', timeout: 30000 }
-            ).trim();
-            const parts = meta.split('|||');
-            titulo = parts[0] || titulo;
-            autor = parts[1] || autor;
-        } catch (e) { logger.warn(`[TikTok] Metadatos fallidos: ${e.message}`); }
+            const shellUrl = safeUrl.replace(/"/g, '\\"');
+            const { stdout: meta } = await execAsync(
+                `yt-dlp --impersonate chrome --no-check-certificates --no-playlist --print "%(title)s|||%(uploader)s" "${shellUrl}"`,
+                { timeout: 40000 }
+            );
+            const parts = meta.trim().split('|||');
+            if (parts[0]) titulo = parts[0];
+            if (parts[1]) autor = parts[1];
+            logger.info(`[TikTok] Título extraído: "${titulo}" por ${autor}`);
+            sendProgress(`Video: ${titulo}`);
+        } catch (e) { 
+            logger.warn(`[TikTok] Metadatos fallidos (usando genéricos): ${e.message}`); 
+        }
 
-
-        const videoOutputTemplate = path.join(videosDir, '%(id)s.%(ext)s');
-        execSync(
-            `yt-dlp --impersonate chrome -f "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best" -o "${videoOutputTemplate}" --no-playlist --max-filesize 100m "${url}"`,
-            { encoding: 'utf8', timeout: 120000 }
+        const videoId = Date.now();
+        const videoPath = path.join(videosDir, `${videoId}.mp4`);
+        const shellUrl = safeUrl.replace(/"/g, '\\"');
+        
+        logger.info(`[TikTok] Descargando video en: ${videoPath}`);
+        await execAsync(
+            `yt-dlp --impersonate chrome --no-check-certificates -f "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]" -o "${videoPath}" --no-playlist --max-filesize 100m "${shellUrl}"`,
+            { timeout: 150000 }
         );
-
-        const videoFiles = fs.readdirSync(videosDir)
-            .filter(f => /\.(mp4|webm|mkv)$/.test(f))
-            .map(f => ({ name: f, time: fs.statSync(path.join(videosDir, f)).mtimeMs }))
-            .sort((a, b) => b.time - a.time);
-
-        if (!videoFiles.length) throw new Error('yt-dlp no generó ningún archivo de video');
-        const videoName = videoFiles[0].name;
-        const videoPath = path.join(videosDir, videoName);
 
         const audioPath = path.join(tmpDir, 'audio.mp3');
+        logger.info(`[TikTok] Extrayendo audio en: ${audioPath}`);
         try {
-            execSync(
-                `ffmpeg -i "${videoPath}" -vn -ar 16000 -ac 1 -ab 64k "${audioPath}" -y 2>&1`,
-                { encoding: 'utf8', timeout: 60000 }
-            );
+            await execAsync(`ffmpeg -i "${videoPath}" -vn -ar 16000 -ac 1 -ab 64k "${audioPath}" -y`, { timeout: 60000 });
         } catch (e) {
-            logger.warn('[TikTok] ffmpeg falló, intentando yt-dlp -x...', e.message);
-            execSync(
-                `yt-dlp --impersonate chrome --no-playlist -x --audio-format mp3 --audio-quality 5 -o "${path.join(tmpDir, 'audio.%(ext)s')}" "${url}" 2>&1`,
-                { encoding: 'utf8', timeout: 60000 }
-            );
+            logger.warn(`[TikTok] FFmpeg falló, probando yt-dlp -x para audio...`);
+            await execAsync(`yt-dlp --impersonate chrome -x --audio-format mp3 -o "${audioPath}" "${shellUrl}"`, { timeout: 60000 });
         }
 
-        const audioFile = fs.readdirSync(tmpDir).find(f => f.includes('audio') && (f.endsWith('.mp3') || f.endsWith('.m4a') || f.endsWith('.opus') || f.endsWith('.ogg')));
-        if (!audioFile) throw new Error('No se pudo extraer audio del video');
+        if (!fs.existsSync(audioPath)) throw new Error('No se pudo generar el archivo de audio para transcribir');
+        const audioBuffer = fs.readFileSync(audioPath);
+        logger.info(`[TikTok] Audio listo para transcribir. Tamaño: ${audioBuffer.length} bytes.`);
 
-        const audioFullPath = path.join(tmpDir, audioFile);
-        const audioBuffer = fs.readFileSync(audioFullPath);
-        const mimeType = audioFile.endsWith('.mp3') ? 'audio/mp3' : audioFile.endsWith('.m4a') ? 'audio/mp4' : 'audio/ogg';
+        // ── ETAPA 2: Transcripción (Sequential) ──
+        sendProgress("Etapa 2/4: Transcribiendo contenido...");
+        const transcripcion = await callAI('vault-transcribe', config, `Transcribe: ${url}`, audioBuffer.toString('base64'), sendProgress);
+        if (!transcripcion) throw new Error('Transcripción vacía');
 
-        // ── ETAPA 2: Transcripción (Gemini 2.0 Flash) ──
-        logger.info('[TikTok] Etapa 2: Transcripción con Gemini 2.0 Flash...');
-        const transcripcion = await callGemini(
-            apiKey,
-            `Transcribe exhaustivamente el audio y acompáñalo SIEMPRE de una traducción exacta. 
-Para facilitar la lectura en la interfaz, IMPRIME OBLIGATORIAMENTE CADA FRASE O PARRAFO usando los siguientes prefijos en líneas separadas (intercaladas entre el idioma original y el traducido de forma recurrente):
+        sendProgress("Etapa 3/4: Generación de Ficha Maestra...");
+        const fusedRaw = await callAI('vault-analyze', config, `Eres un motor de extracción técnica. Chris necesita la ficha de conocimiento para esta transcripción.
+        TRANSCRIPCIÓN: ${transcripcion}
+        
+        REQUISITOS:
+        1. Devuelve ÚNICAMENTE un objeto JSON válido.
+        2. No incluyas explicaciones, saludos ni comentarios.
+        3. Formato: { "titulo": "...", "resumen": "...", "categoria": "...", "prioridad": 1-5, "herramientas": [{"nombre": "...", "descripcion": "..."}], "conceptos_clave": [], "manual_uso": "...", "puntos_exploracion": [{"tema": "...", "pregunta": "..."}] }`);
+        
+        const analisis = extractJSON(fusedRaw);
+        if (!analisis) throw new Error('No se pudo extraer una ficha válida de la IA');
 
-#ORIGINAL# [texto en el idioma nativo del video]
-#TRADUCCION# [traducción literal en el otro idioma]
-
-Ejemplo:
-#ORIGINAL# Esto es una prueba.
-#TRADUCCION# This is a test.`,
-            audioBuffer.toString('base64'),
-            mimeType,
-            'gemini-2.0-flash'
-        );
-        if (!transcripcion) throw new Error('No se pudo obtener transcripción del video.');
-
-        // ── ETAPA 3: Análisis técnico (Gemini 2.0 Flash) ──
-        logger.info('[TikTok] Etapa 3: Análisis de contenido con Gemini 2.0 Flash...');
-        const analisisRaw = await callGemini(
-            apiKey,
-            `Analiza esta transcripción de video y extrae una FICHA TÉCNICA PREMIUM.
-TU MISIÓN: Identificar herramientas, conceptos técnicos y crear puntos de exploración.
-
-Respuesta SOLO JSON (obligatorio):
-{
-  "titulo": "Título profesional atractivo",
-  "concepto": "Resumen técnico de 2-3 frases",
-  "herramientas": [{"nombre": "...", "tipo": "...", "descripcion": "...", "precio": "...", "url_oficial": ""}],
-  "conceptos_clave": [],
-  "puntos_exploracion": [{"tema": "Aspecto técnico 1", "pregunta": "¿Cómo implementar...?"}, {"tema": "Aspecto técnico 2", "pregunta": "¿Por qué usar...?"}, {"tema": "Aspecto técnico 3", "pregunta": "¿Qué ventajas...?"}],
-  "nivel": "principiante|intermedio|avanzado",
-  "idioma": "ES|EN|OTRO"
-}
-TRANSCRIPCIÓN: ${transcripcion}`,
-            null,
-            null,
-            'gemini-2.0-flash'
-        );
-
-        let analisis = {
-            titulo,
-            concepto: 'Resumen no disponible',
-            herramientas: [],
-            puntos_exploracion: [],
-            nivel: 'intermedio',
-            idioma: 'ES'
-        };
-        try {
-            const cleanJSON = analisisRaw.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
-            analisis = JSON.parse(cleanJSON);
-        } catch (e) { logger.warn('[TikTok] Error parseando análisis:', e.message); }
-
-        // ── ETAPA 3.5: Clasificación y Priorización (Gemini 2.0 Flash) ──
-        logger.info('[TikTok] Etapa 3.5: Clasificando importancia...');
-        let prioridad = 3;
-        let categoria = 'Información';
-        try {
-            const classRaw = await callGemini(
-                apiKey,
-                `Clasifica este video técnico.
-Categorías: "Herramienta Nueva", "Tutorial/Skill", "News IA", "Opinión".
-Prioridad: 1 (Urgent/Actionable) a 5 (General Knowledge).
-TRANSCRIPCIÓN: ${transcripcion.substring(0, 1000)}
-Response SOLO JSON: {"categoria": "...", "prioridad": 1-5}`,
-                null,
-                null,
-                'gemini-2.0-flash'
-            );
-            const classData = JSON.parse(classRaw.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim());
-            prioridad = classData.prioridad || 3;
-            categoria = classData.categoria || 'Información';
-        } catch (e) { }
-
-        // ── ETAPA 4: Deep Search de cada herramienta ──
-        logger.info(`[TikTok] Etapa 4: Research profundo de herramientas...`);
-        const herramientasConLinks = await Promise.all(
-            (analisis.herramientas || []).map(async (h) => {
-                const searchQueries = [
-                    `${h.nombre} official website`,
-                    `${h.nombre} github repository`,
-                    `${h.nombre} technical documentation`
-                ];
-                const allResults = await Promise.all(searchQueries.map(q => buscarWeb(q)));
-                const flatResults = allResults.flat();
-
-                const githubResult = flatResults.find(r => r.url?.includes('github.com'));
-                const docsResult = flatResults.find(r => r.url?.includes('docs.') || r.url?.includes('/docs') || r.url?.includes('/guide'));
-
-                return {
-                    ...h,
-                    url_oficial: githubResult?.url || docsResult?.url || (flatResults[0]?.url || h.url_oficial || null),
-                    busqueda_web: flatResults.slice(0, 5)
-                };
-            })
-        );
-
-        // ── ETAPA 4.5: INVESTIGACIÓN PROFUNDA (Gemini 3.1 Pro Preview) ──
-        let investigacionProfunda = "";
-        logger.info('[TikTok] Etapa 4.5: Generando investigación técnica con Gemini 3.1 Pro...');
-
-        const deepSearchPrompt = `Actúa como un CTO experto. Analiza técnicamente esta transcripción y las herramientas encontradas:
-TRANSCRIPCIÓN: ${transcripcion}
-HERRAMIENTAS: ${herramientasConLinks.map(h => `${h.nombre} (${h.tipo}): ${h.descripcion}`).join('\n')}
-
-TU MISIÓN:
-1. Explica la arquitectura técnica y el valor real de lo mencionado.
-2. Identifica desafíos de implementación o "gotchas".
-3. Sugiere un flujo de trabajo para integrar esto en un stack moderno.
-4. Resumen ejecutivo de 3 párrafos súper técnicos.
-USA FORMATO MARKDOWN LIMPIO.`;
-
-        try {
-            investigacionProfunda = await callGemini(apiKey, deepSearchPrompt, null, null, 'gemini-3.1-pro-preview');
-        } catch (e) {
-            logger.warn('[TikTok] Gemini 3.1 Pro falló, usando fallback inteligente...', e.message);
-            investigacionProfunda = await callIntelligentAI(config, deepSearchPrompt);
-        }
-
-        // ── ETAPA 5: Matching con proyectos REALES de la aplicación ──
-        logger.info('[TikTok] Etapa 5: Matching con proyectos cargados en la APP...');
-        const { loadProjects } = require('./projects');
-
-        // El DATA_DIR es el padre de la carpeta videos
-        const appDataDir = path.dirname(videosDir);
-        const proyectosCargados = loadProjects(appDataDir);
-
-        let sugerenciasProyectos = [];
-
-        if (proyectosCargados && proyectosCargados.length > 0) {
-            // Match base por palabras clave (fallback)
-            sugerenciasProyectos = matchProyectos(transcripcion, herramientasConLinks, proyectosCargados);
-
-            try {
-                const projectContext = proyectosCargados.map(p => `- ${p.name}: ${p.description || 'Sin descripción'}`).join('\n');
-                logger.info(`[TikTok] Consultando IA para matching específico con ${proyectosCargados.length} proyectos.`);
-
-                const sugerenciasRaw = await callGemini(
-                    apiKey,
-                    `Actúa como un arquitecto de software experto. Chris tiene los siguientes proyectos cargados en su aplicación:
-${projectContext}
-
-TU MISIÓN:
-1. Basado en esta transcripción de video: "${transcripcion.substring(0, 2000)}"
-2. Identifica si alguna herramienta o concepto mencionado puede mejorar ALGUNO de los proyectos de la lista.
-3. Sé MUY ESPECÍFICO. No digas "puede ayudar", di "puedes usar X para automatizar Y en el proyecto Z".
-4. Si NO hay relación clara, no inventes, deja el array vacío.
-5. NO menciones proyectos que NO estén en la lista anterior.
-
-Respuesta SOLO JSON: { "matches": [ { "proyecto": "Nombre exacto", "sugerencia": "Explicación técnica premium", "relevancia": "alta/media" } ] }`,
-                    null,
-                    null,
-                    'gemini-2.0-flash'
-                );
-
-                const cleanSug = sugerenciasRaw.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
-                const parsed = JSON.parse(cleanSug);
-                if (parsed.matches && parsed.matches.length > 0) {
-                    sugerenciasProyectos = parsed.matches;
+        // ── ETAPA 4: Parallel Branching (Web Research & Project Match) ──
+        sendProgress("Etapa 4/4: Research profundo y Matching de proyectos...");
+        const [herramientasConWeb, sugerenciasProyectos, investigacionProfunda] = await Promise.all([
+            // Rama A: Enriquecimiento Web
+            Promise.all((analisis.herramientas || []).map(async (h) => {
+                try {
+                    const web = await buscarWeb(`${h.nombre} official docs github`);
+                    return { ...h, web_links: web.slice(0, 3) };
+                } catch (err) {
+                    logger.warn(`[Rama A] Error buscando web para ${h.nombre}:`, err.message);
+                    return h;
                 }
-            } catch (e) {
-                logger.error('[TikTok] Error en matching IA:', e.message);
-                // Mantenemos las sugerencias base si la IA falla
-            }
-        } else {
-            logger.info('[TikTok] No hay proyectos cargados para realizar matching.');
-        }
+            })).catch(e => {
+                logger.warn('[Rama A] Falló enriquecimiento completo:', e.message);
+                return analisis.herramientas || [];
+            }),
+            // Rama B: Project Match
+            (async () => {
+                try {
+                    const { loadProjects } = require('./projects');
+                    const proyectos = await loadProjects();
+                    if (!proyectos.length) return [];
+                    const res = await callAI('vault-matcher', config, `Analiza el video: ${transcripcion}. Proyectos disponibles de Chris: ${JSON.stringify(proyectos)}. 
+                    Mapea el video a los proyectos relevantes. Devuelve SOLO JSON: { "matches": [{ "proyecto": "...", "relevancia": 0-100, "sugerencia": "..." }] }`);
+                    return extractJSON(res)?.matches || []; 
+                } catch (err) {
+                    logger.warn('[Rama B] Falló Project Match:', err.message);
+                    return [];
+                }
+            })(),
+            // Rama C: Deep Research Summary
+            callAI('vault-research', config, `Resumen técnico profundo de: ${transcripcion}`).catch(e => {
+                logger.warn('[Rama C] Falló Deep Research:', e.message);
+                return 'No se pudo generar investigación profunda (Error de IA o Cuota).';
+            })
+        ]);
 
-        // ── ETAPA 5.5: Generación de Manual de Uso (Si es Skill o Herramienta nueva) ──
-        let manualUso = null;
-        if (prioridad <= 2 || categoria === 'Skill') {
-            logger.info('[TikTok] Etapa 5.5: Generando Manual de Uso con Gemini 3.1 Pro...');
-            try {
-                manualUso = await callGemini(
-                    apiKey,
-                    `Actúa como un redactor técnico de alta gama.
-Basado en esta transcripción y análisis, crea un MANUAL DE USO RÁPIDO para Chris.
-Pasos exactos, comandos si existen, y consejos de optimización.
-Si es sobre Antigravity o agentes IA, sé muy sofisticado.
-TRANSCRIPCIÓN: ${transcripcion}
-Usa Markdown elegante.`,
-                    null,
-                    null,
-                    'gemini-3.1-pro-preview'
-                );
-            } catch (e) { }
-        }
-
-        // ── ETAPA 6: Puntos clave para exploración ──
-        logger.info('[TikTok] Etapa 6: Generando puntos de exploración con Gemini 2.0 Flash...');
-        let exploraciones = [];
-        try {
-            const expRaw = await callGemini(
-                apiKey,
-                `Sugerir 3 temas para profundizar.
-Respuesta SOLO JSON: [ {"tema": "...", "pregunta": "..."} ]
-TRANSCRIPCIÓN: ${transcripcion.substring(0, 1000)}`,
-                null,
-                null,
-                'gemini-2.0-flash'
-            );
-            exploraciones = JSON.parse(expRaw.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim());
-        } catch (e) { }
-
-        // ── ETAPA 7: Construir ficha ──
-        logger.info('[TikTok] Etapa 7: Guardando ficha completa...');
-        const ficha = {
-            titulo: analisis.tema_principal || titulo,
-            concepto: transcripcion.substring(0, 350),
-            funcionalidades: (analisis.herramientas || []).map(h => `${h.nombre}: ${h.descripcion}`).slice(0, 6),
-            tags: analisis.conceptos_clave || [],
-            aplicabilidad: sugerenciasProyectos.map(m => `${m.proyecto}: ${m.sugerencia}`).join(' | '),
+        // ── ETAPA FINAL: Consolidación y PostgreSQL ──
+        const fichaFinal = {
+            id: `f_${videoId}`,
+            title: analisis.titulo || titulo,
+            timestamp: Date.now(),
+            urlOriginal: url,
             transcripcion: transcripcion,
-            autor: autor,
-            nivel: analisis.nivel || 'intermedio',
-            idioma: analisis.idioma_video || 'es',
-            prioridad,
-            categoria,
-            manual_uso: manualUso,
-            herramientas: herramientasConLinks,
-            aplicaciones_proyectos: sugerenciasProyectos,
-            investigacion_profunda: investigacionProfunda,
-            puntos_exploracion: exploraciones,
-            url_video: url,
-            createdAt: new Date().toISOString()
+            videoPath: videoPath,
+            videoName: `${videoId}.mp4`,
+            data: {
+                ...analisis,
+                herramientas: herramientasConWeb,
+                aplicaciones_proyectos: sugerenciasProyectos,
+                investigacion_profunda: investigacionProfunda,
+                autor,
+                url_original: url,
+                videoPath: videoPath,
+                videoName: `${videoId}.mp4`,
+                source_channel: channel,
+                processed_at: new Date().toISOString()
+            }
         };
 
-        return { ficha, videoPath, videoName };
+        // NOTA: Auto-Vectorización RAG temporalmente encolada (evita ipcMain crash).
+        logger.info('[RAG] Ficha lista para vectorización asincrónica (pendiente UI).');
 
+
+        await db.saveFicha(fichaFinal);
+        logger.info('[TikTok] Ficha optimizada guardada con éxito.');
+        return fichaFinal;
+    } catch (err) {
+        logger.error(`[TikTok] Fallo en pipeline: ${err.message}`);
+        sendProgress(`Error: ${err.message}`);
+        throw err;
     } finally {
         try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch { }
     }
@@ -552,8 +646,7 @@ TRANSCRIPCIÓN: ${transcripcion.substring(0, 1000)}`,
 
 // ── Análisis de video local con Gemini (handler fichas:analyze-gemini) ──
 async function analyzeVideoWithGemini(fileName, config) {
-    const keys = getKeys();
-    const apiKey = keys.gemini || config.gemini?.apiKey;
+    const apiKey = config.gemini?.apiKey;
     if (!apiKey) throw new Error('API Key de Gemini no configurada.');
 
     const videosDir = path.join(os.homedir(), '.devassist', 'videos');
@@ -573,18 +666,18 @@ async function analyzeVideoWithGemini(fileName, config) {
 
         const audioBuffer = fs.readFileSync(audioPath);
 
-        // Transcripción rápida con Gemini 2.0 Flash
-        const transcripcion = await callGemini(
-            apiKey,
+        // Transcripción con Agente asignado
+        const transcripcion = await callAI(
+            'vault-transcribe',
+            config,
             'Transcribe exhaustivamente este audio. Si es en otro idioma, incluye también la traducción al español.',
-            audioBuffer.toString('base64'),
-            'audio/mp3',
-            'gemini-2.0-flash'
+            audioBuffer.toString('base64')
         );
 
-        // Análisis técnico con Gemini 2.0 Flash
-        const analisisRaw = await callGemini(
-            apiKey,
+        // Análisis técnico con Agente asignado
+        const analisisRaw = await callAI(
+            'vault-analyze',
+            config,
             `Analiza esta transcripción y extrae una ficha técnica.
 Respuesta SOLO JSON:
 {
@@ -595,13 +688,13 @@ Respuesta SOLO JSON:
   "nivel": "principiante|intermedio|avanzado",
   "idioma": "ES|EN|OTRO"
 }
-TRANSCRIPCIÓN: ${transcripcion}`,
-            null, null, 'gemini-2.0-flash'
+TRANSCRIPCIÓN: ${transcripcion}`
         );
 
         let analisis = { titulo: fileName, concepto: 'Sin análisis', herramientas: [], nivel: 'intermedio', idioma: 'ES' };
         try {
-            analisis = JSON.parse(analisisRaw.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim());
+            const parsed = extractJSON(analisisRaw);
+            if (parsed) analisis = { ...analisis, ...parsed };
         } catch (e) { logger.warn('[analyze-gemini] Error parseando:', e.message); }
 
         return { transcripcion, analisis };
@@ -611,52 +704,36 @@ TRANSCRIPCIÓN: ${transcripcion}`,
 }
 
 
-module.exports = function registerFichasHandlers(ipcMain, dataDir, dialog) {
+function registerFichasHandlers(ipcMain, dataDir, dialog) {
     ipcMain.handle('fichas:load', async () => {
-        return loadFichas(dataDir);
+        return await db.getFichas();
     });
 
     ipcMain.handle('fichas:save', async (_event, ficha) => {
-        const fichas = loadFichas(dataDir);
-        const idx = fichas.findIndex((f) => f.id === ficha.id);
-        if (idx >= 0) {
-            fichas[idx] = { ...fichas[idx], ...ficha };
-        } else {
-            fichas.push(ficha);
-        }
-        saveFichas(dataDir, fichas);
-        return ficha;
-    });
-
-    ipcMain.handle('fichas:delete', async (_event, id) => {
-        let fichas = loadFichas(dataDir);
-        const fichaToDelete = fichas.find(f => f.id === id);
-
-        // ── Borrado físico del video asociado ──
-        if (fichaToDelete) {
-            const videosDir = path.join(os.homedir(), '.devassist', 'videos');
-            const pathsToTry = [];
-            if (fichaToDelete.videoPath) pathsToTry.push(fichaToDelete.videoPath);
-            if (fichaToDelete.videoName) pathsToTry.push(path.join(videosDir, fichaToDelete.videoName));
-
-            for (const vp of pathsToTry) {
-                if (fs.existsSync(vp)) {
-                    try {
-                        fs.unlinkSync(vp);
-                        logger.info(`[fichas:delete] Archivo de video borrado: ${vp}`);
-                        break;
-                    } catch (err) {
-                        logger.warn(`[fichas:delete] No se pudo borrar el archivo físico ${vp}:`, err.message);
-                    }
-                }
-            }
-        }
-
-        fichas = fichas.filter((f) => f.id !== id);
-        saveFichas(dataDir, fichas);
+        await db.saveFicha(ficha);
         return { ok: true };
     });
 
+    ipcMain.handle('fichas:delete', async (_event, id) => {
+        try {
+            const fichas = await db.getFichas();
+            const fichaToDelete = fichas.find(f => f.id === id);
+            
+            if (fichaToDelete) {
+                // Borrado físico de video...
+                const videosDir = path.join(os.homedir(), '.devassist', 'videos');
+                const pathsToTry = [];
+                if (fichaToDelete.videoPath) pathsToTry.push(fichaToDelete.videoPath);
+                if (fichaToDelete.videoName) pathsToTry.push(path.join(videosDir, fichaToDelete.videoName));
+                pathsToTry.forEach(p => { if(fs.existsSync(p)) fs.unlinkSync(p); });
+            }
+
+            await db.deleteFicha(id);
+            return { ok: true };
+        } catch (e) {
+            return { ok: false, error: e.message };
+        }
+    });
     ipcMain.handle('fichas:select-video', async () => {
         const result = await dialog.showOpenDialog({
             properties: ['openFile'],
@@ -690,18 +767,28 @@ module.exports = function registerFichasHandlers(ipcMain, dataDir, dialog) {
     ipcMain.handle('fichas:process-tiktok-url', async (_event, url) => {
         try {
             const { loadConfig } = require('./config');
-            const config = loadConfig(dataDir);
-            const result = await processTikTokUrl(url, config);
-            return { ok: true, ...result };
+            const config = await loadConfig();
+            const result = await processTikTokUrl(url, config, { channel: 'app' }, _event);
+            
+            // Manejar duplicados
+            if (result && result.duplicate) {
+                return { ok: false, duplicate: true, existingTitle: result.existingTitle, error: result.message };
+            }
+            
+            return { ok: true, data: result };
         } catch (err) {
             return { ok: false, error: err.message };
         }
     });
 
+    ipcMain.handle('fichas:mark-opened', async (_event, id) => {
+        return await logFichaOpening(id);
+    });
+
     ipcMain.handle('fichas:analyze-gemini', async (_event, fileName) => {
         try {
             const { loadConfig } = require('./config');
-            const config = loadConfig(dataDir);
+            const config = await loadConfig();
             const data = await analyzeVideoWithGemini(fileName, config);
             return { ok: true, data };
         } catch (err) {
@@ -712,22 +799,24 @@ module.exports = function registerFichasHandlers(ipcMain, dataDir, dialog) {
 
     ipcMain.handle('fichas:generate-deep', async (_event, id) => {
         try {
-            const fichas = loadFichas(dataDir);
-            const idx = fichas.findIndex(f => f.id === id);
-            if (idx === -1) throw new Error('Ficha no encontrada');
+            // Cargamos desde DB (sin parámetros — SQLite no necesita dataDir)
+            const fichas = loadFichas();
+            const ficha = fichas.find(f => f.id === id);
+            if (!ficha) throw new Error(`Ficha no encontrada: ${id}`);
 
-            const ficha = fichas[idx];
             const { loadConfig } = require('./config');
-            const config = loadConfig(dataDir);
-            const apiKeyGemini = config.gemini?.apiKey;
-            if (!apiKeyGemini) throw new Error('API Key de Gemini no configurada');
+            const config = await loadConfig();
 
             const transcripcion = ficha.transcripcion || '';
             const herramientasDesc = (ficha.herramientas || []).map(h => `${h.nombre}: ${h.descripcion}`).join('\n');
 
-            const projectContext = fichas.length > 0 ? (await require('./projects').loadProjects(dataDir)).map(p => p.name).join(', ') : 'DevAssist';
+            // Proyectos reales desde DB (sin parámetros)
+            const { loadProjects } = require('./projects');
+            const proyectos = loadProjects();
+            const projectContext = proyectos.length > 0
+                ? proyectos.map(p => p.name).join(', ')
+                : 'DevAssist';
 
-            // ── EXPERT INSTRUCTION ──
             const deepPrompt = `
 Eres el CTO experto en tecnología y arquitectura de software de elite. Chris confía en ti para liderar el pensamiento técnico de sus proyectos.
 Realiza el análisis profundo (Deep Search) MÁS EXTREMO posible en base a esta transcripción y herramientas del video:
@@ -745,11 +834,13 @@ TU MISIÓN:
 RESPUESTA: Usa un tono profesional, directo y ultra-técnico. Menos palabras, más valor.
             `;
 
-            logger.info('[fichas:generate-deep] Usando Gemini 3.1 Pro Preview para análisis profundo...');
-            const investigacionProfunda = await callGemini(apiKeyGemini, deepPrompt, null, null, 'gemini-3.1-pro-preview');
+            logger.info('[fichas:generate-deep] Usando Sistema Multi-IA para análisis profundo...');
+            const investigacionProfunda = await callAI('vault-research', config, deepPrompt);
 
-            fichas[idx].investigacion_profunda = investigacionProfunda;
-            saveFichas(dataDir, fichas);
+            // ✅ CORRECTO: guardar en SQLite con db.saveFicha (no saveFichas de archivos)
+            const fichaActualizada = { ...ficha, investigacion_profunda: investigacionProfunda };
+            db.saveFicha(fichaActualizada);
+            logger.info(`[fichas:generate-deep] Investigación guardada en DB para ficha ${id}`);
 
             return { ok: true, investigacion_profunda: investigacionProfunda };
         } catch (err) {
@@ -761,7 +852,7 @@ RESPUESTA: Usa un tono profesional, directo y ultra-técnico. Menos palabras, m�
     ipcMain.handle('fichas:research-point', async (_event, { tema, pregunta }) => {
         try {
             const { loadConfig } = require('./config');
-            const config = loadConfig(dataDir);
+            const config = await loadConfig();
 
             // 1. Búsqueda web de contexto
             const searchResults = await buscarWeb(`${tema} ${pregunta}`);
@@ -832,4 +923,5 @@ Usa MARKDOWN denso y limpio.`;
     });
 };
 
+module.exports = registerFichasHandlers;
 module.exports.processTikTokUrl = processTikTokUrl;

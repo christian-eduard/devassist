@@ -44,14 +44,6 @@
     font-size: 13px;
 }
 
-.clawbot-settings-sub {
-    margin-top: 20px;
-    padding-top: 20px;
-    border-top: 1px solid var(--border);
-    display: flex;
-    flex-direction: column;
-    gap: 16px;
-}
 
 .settings-footer {
     margin-top: 40px;
@@ -139,4 +131,307 @@
 
 .module-body {
     padding: 32px;
+}
+
+/* ── AI Settings Styles ── */
+.ai-providers-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 16px;
+    margin-top: 15px;
+}
+
+.provider-card {
+    background: var(--bg-2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.provider-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.provider-header label {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-2);
+}
+
+.status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #444;
+}
+
+.status-dot.online { background: #00ff99; box-shadow: 0 0 8px rgba(0,255,153,0.4); }
+.status-dot.offline { background: #ff4d4d; box-shadow: 0 0 8px rgba(255,77,77,0.4); }
+.status-dot.loading { background: #7c6af7; animation: pulse 1.5s infinite; }
+
+.provider-body {
+    display: flex;
+    gap: 8px;
+}
+
+.input.xs {
+    flex: 1;
+    padding: 4px 8px;
+    font-size: 12px;
+}
+
+.btn-xs {
+    padding: 4px 10px;
+    font-size: 11px;
+    height: auto;
+}
+
+@keyframes pulse {
+    0% { opacity: 0.5; }
+    50% { opacity: 1; }
+    100% { opacity: 0.5; }
+}
+
+/* ── Toggle Switch ── */
+.toggle-switch {
+    position: relative;
+    display: inline-block;
+    width: 44px;
+    height: 24px;
+    flex-shrink: 0;
+}
+
+.toggle-switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+    position: absolute;
+}
+
+.toggle-slider {
+    position: absolute;
+    cursor: pointer;
+    inset: 0;
+    background: var(--bg-3);
+    border: 1px solid var(--border);
+    border-radius: 24px;
+    transition: all 0.25s ease;
+}
+
+.toggle-slider:before {
+    content: '';
+    position: absolute;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: var(--text-3);
+    left: 3px;
+    top: 50%;
+    transform: translateY(-50%);
+    transition: all 0.25s ease;
+}
+
+.toggle-switch input:checked + .toggle-slider {
+    background: rgba(139, 92, 246, 0.3);
+    border-color: #8b5cf6;
+}
+
+.toggle-switch input:checked + .toggle-slider:before {
+    background: #8b5cf6;
+    transform: translate(20px, -50%);
+    box-shadow: 0 0 8px rgba(139, 92, 246, 0.6);
+}
+
+/* ── OpenClaw / TESS Panel ── */
+.openclaw-header {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 20px;
+    background: linear-gradient(135deg, rgba(139, 92, 246, 0.08), rgba(34, 211, 238, 0.04));
+    border: 1px solid rgba(139, 92, 246, 0.2);
+    border-radius: 14px;
+    margin-bottom: 24px;
+}
+
+.openclaw-avatar {
+    font-size: 36px;
+    width: 58px;
+    height: 58px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(139, 92, 246, 0.12);
+    border: 1px solid rgba(139, 92, 246, 0.3);
+    border-radius: 14px;
+    flex-shrink: 0;
+}
+
+.openclaw-header-info h3 {
+    margin: 0 0 4px;
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--text-1);
+}
+
+.openclaw-header-info p {
+    margin: 0;
+    font-size: 12px;
+    color: var(--text-3);
+}
+
+.openclaw-status-pills {
+    display: flex;
+    gap: 8px;
+    margin-top: 8px;
+    flex-wrap: wrap;
+}
+
+.status-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 3px 10px;
+    border-radius: 20px;
+    border: 1px solid var(--border);
+    color: var(--text-3);
+    background: var(--bg-2);
+}
+
+.status-pill.active {
+    background: rgba(34, 197, 94, 0.1);
+    border-color: rgba(34, 197, 94, 0.3);
+    color: #22c55e;
+}
+
+.status-pill .dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: currentColor;
+}
+
+.openclaw-channel-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 16px;
+    padding: 20px;
+    background: var(--bg-2);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    transition: border-color 0.2s;
+}
+
+.openclaw-channel-row:hover {
+    border-color: rgba(139, 92, 246, 0.25);
+}
+
+.openclaw-channel-icon {
+    font-size: 22px;
+    width: 42px;
+    height: 42px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--bg-3);
+    border-radius: 10px;
+    flex-shrink: 0;
+    color: var(--text-2);
+}
+
+.openclaw-channel-body {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.openclaw-channel-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.openclaw-channel-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-1);
+    margin: 0 0 2px;
+}
+
+.openclaw-channel-sub {
+    font-size: 12px;
+    color: var(--text-3);
+    margin: 0;
+}
+
+.openclaw-token-row {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.openclaw-token-row .input {
+    flex: 1;
+    font-size: 12px;
+    font-family: 'JetBrains Mono', monospace;
+}
+
+.openclaw-qr-box {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    padding: 16px;
+    background: #fff;
+    border-radius: 12px;
+    width: fit-content;
+}
+
+.openclaw-qr-box img {
+    width: 200px;
+    height: 200px;
+    display: block;
+}
+
+.openclaw-qr-box p {
+    margin: 0;
+    font-size: 11px;
+    color: #333;
+    font-weight: 500;
+}
+
+.openclaw-status-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 13px;
+    color: var(--text-2);
+}
+
+.openclaw-status-indicator {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--text-3);
+    flex-shrink: 0;
+}
+
+.openclaw-status-indicator.connected {
+    background: #22c55e;
+    box-shadow: 0 0 8px rgba(34, 197, 94, 0.5);
+    animation: pulse 2s infinite;
+}
+
+.openclaw-status-indicator.starting {
+    background: #f59e0b;
+    box-shadow: 0 0 8px rgba(245, 158, 11, 0.5);
+    animation: pulse 1s infinite;
 }

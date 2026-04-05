@@ -144,7 +144,7 @@
     color: var(--accent);
 }
 
-.clawbot-status {
+.system-status {
     display: flex;
     align-items: center;
     gap: 10px;
@@ -155,7 +155,7 @@
     transition: background var(--transition);
 }
 
-.clawbot-status:hover {
+.system-status:hover {
     background: var(--bg-4);
 }
 
@@ -165,12 +165,12 @@
     color: var(--text-3);
 }
 
-.clawbot-status:hover .status-label {
+.system-status:hover .status-label {
     color: var(--text-2);
 }
 
-/* VECTRON Orb Section */
-.vectron-orb-section {
+/* Core Orb Section */
+.core-orb-section {
     margin-top: 10px;
     padding: 20px 0;
     display: flex;

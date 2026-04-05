@@ -1,199 +1,174 @@
-const { ipcMain, net } = require('electron');
-const fs = require('fs');
-const path = require('path');
+const { exec } = require('child_process');
+const TelegramBot = require('node-telegram-bot-api');
+const { Client, LocalAuth } = require('whatsapp-web.js');
+const qrcode = require('qrcode');
+const { loadConfig, saveConfig } = require('./config');
+const { processTikTokUrl } = require('./fichas');
+const { chatWithAgent } = require('./agents');
 const logger = require('./logger');
-const { isAgentActive, touchAgentActivity } = require('./agents_manager');
-const { loadConfig } = require('./config');
 
-module.exports = function registerClawbotHandlers(ipcMain, mainWindow, DATA_DIR, config) {
+let tgBot = null;
+let waClient = null;
+let currentWaQr = null;
 
-    const { processMessageWithClawbot } = require('./ai_processor');
+function isUrl(text) {
+    const regex = /(https?:\/\/[^\s]+)/g;
+    return text.match(regex);
+}
 
-    // ── 1D: History Manager ──
-    function loadHistory(dataDir) {
-        const filePath = path.join(dataDir, 'history.json');
-        try {
-            if (fs.existsSync(filePath)) {
-                return JSON.parse(fs.readFileSync(filePath, 'utf8'));
+// Envía progreso al bot correspondiente (si existe un chat_id o phoneNumber)
+async function sendToUser(platform, destination, message) {
+    try {
+        if (platform === 'telegram' && tgBot) {
+            await tgBot.sendMessage(destination, message);
+        } else if (platform === 'whatsapp' && waClient) {
+            // Asegurar que el destino es un JID válido si solo recibimos número
+            const target = destination.includes('@') ? destination : `${destination.replace(/\D/g, '')}@c.us`;
+            await waClient.sendMessage(target, message);
+        }
+    } catch (e) {
+        logger.error(`[Clawbot] Error enviando mensaje a ${platform}:`, e);
+    }
+}
+
+async function handleMessage(text, platform, destination, config) {
+    logger.info(`[Clawbot] Mensaje recibido [${platform}] de ${destination}: "${text}"`);
+    const urls = isUrl(text);
+    if (!urls) {
+        // Integración con TESS para mensajes directos
+        const response = await chatWithAgent(text, 'main', platform);
+        await sendToUser(platform, destination, response);
+        return;
+    }
+
+    const url = urls[0];
+    await sendToUser(platform, destination, `Reconocido enlace: ${url}\nIniciando ingesta en DevAssist...`);
+
+    try {
+        await processTikTokUrl(url, config, {
+            onProgress: (msg) => sendToUser(platform, destination, msg)
+        });
+        await sendToUser(platform, destination, `Registro finalizado con éxito. Guardado en el Vault.`);
+    } catch (err) {
+        await sendToUser(platform, destination, `Falla en la ingesta: ${err.message}`);
+    }
+}
+
+function initTelegram(config) {
+    if (!config.clawbot_telegramEnabled || !config.clawbot_telegramToken) {
+        if (tgBot) {
+            tgBot.stopPolling();
+            tgBot = null;
+            logger.info('[Clawbot] Telegram apagado.');
+        }
+        return;
+    }
+
+    if (!tgBot) {
+        tgBot = new TelegramBot(config.clawbot_telegramToken, { polling: true });
+        logger.info('[Clawbot] Telegram iniciado.');
+
+        tgBot.on('message', async (msg) => {
+            const chatId = msg.chat.id;
+            const text = msg.text || '';
+            const freshConfig = await loadConfig(); // refresh config for keys
+            handleMessage(text, 'telegram', chatId, freshConfig);
+        });
+
+        tgBot.on('polling_error', (error) => {
+            logger.error('[Clawbot] Telegram Polling Error:', error);
+        });
+    }
+}
+
+function initWhatsApp(config, mainWindow) {
+    if (!config.clawbot_whatsappEnabled) {
+        if (waClient) {
+            waClient.destroy();
+            waClient = null;
+            currentWaQr = null;
+            logger.info('[Clawbot] WhatsApp apagado.');
+            if (mainWindow) mainWindow.webContents.send('clawbot:wa-status', { status: 'disconnected' });
+        }
+        return;
+    }
+
+    if (!waClient) {
+        logger.info('[Clawbot] Iniciando WhatsApp...');
+        if (mainWindow) mainWindow.webContents.send('clawbot:wa-status', { status: 'starting' });
+
+        waClient = new Client({
+            authStrategy: new LocalAuth({ dataPath: './.devassist/whatsapp_auth' }),
+            puppeteer: {
+                headless: true,
+                args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-accelerated-2d-canvas', '--no-first-run', '--no-zygote', '--single-process', '--disable-gpu']
             }
-        } catch (e) { }
-        return [];
-    }
+        });
 
-    function saveToHistory(entry, dataDir) {
-        const filePath = path.join(dataDir, 'history.json');
-        try {
-            let history = loadHistory(dataDir);
-            history.push(entry);
-            if (history.length > 200) history = history.slice(-200);
-            fs.writeFileSync(filePath, JSON.stringify(history, null, 2));
-        } catch (e) { }
-    }
+        waClient.on('qr', async (qrRaw) => {
+            logger.info('[Clawbot] QR de WhatsApp generado.');
+            try {
+                currentWaQr = await qrcode.toDataURL(qrRaw);
+                if (mainWindow) mainWindow.webContents.send('clawbot:wa-qr', currentWaQr);
+            } catch (err) {
+                logger.error('[Clawbot] Error generando QR imagen:', err);
+            }
+        });
 
-    ipcMain.handle('clawbot:get-history', async () => loadHistory(DATA_DIR));
-    ipcMain.handle('clawbot:clear-history', async () => {
-        const filePath = path.join(DATA_DIR, 'history.json');
-        if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+        waClient.on('ready', () => {
+            logger.info('[Clawbot] WhatsApp Listo y Conectado.');
+            currentWaQr = null;
+            if (mainWindow) mainWindow.webContents.send('clawbot:wa-status', { status: 'connected' });
+        });
+
+        waClient.on('message', async (message) => {
+            const text = message.body || '';
+            const from = message.from;
+            // Opcional: whitelist from el numero que dio el usuario, pero lo abrimos a cualquier numero q lo contacte?
+            // "te voy pasando los datos del whasap que seria el numero : 644 984 173"
+            const freshConfig = await loadConfig();
+            handleMessage(text, 'whatsapp', from, freshConfig);
+        });
+
+        waClient.on('disconnected', (reason) => {
+            logger.info('[Clawbot] WhatsApp desconectado:', reason);
+            if (mainWindow) mainWindow.webContents.send('clawbot:wa-status', { status: 'disconnected' });
+            waClient = null;
+            currentWaQr = null;
+            // auto restart si sigue activado
+            setTimeout(async () => {
+                const conf = await loadConfig();
+                initWhatsApp(conf, mainWindow);
+            }, 5000);
+        });
+
+        waClient.initialize().catch(err => {
+            logger.error('[Clawbot] Error inicializando WhatsApp:', err);
+        });
+    }
+}
+
+module.exports = function registerClawbotHandlers(ipcMain, mainWindow) {
+    // TESS: Desactivamos bot interno para evitar conflictos con el gateway OpenClaw (Port 18789)
+    // El gateway es ahora el único punto de entrada de comunicaciones.
+    // loadConfig().then(config => {
+    //     initTelegram(config);
+    //     initWhatsApp(config, mainWindow);
+    // });
+
+    ipcMain.handle('clawbot:sync-config', async (event, configChanges) => {
+        const config = await loadConfig();
+        const merged = { ...config, ...configChanges };
+        await saveConfig(merged);
+        // TESS: NO re-inicializar bots internos. OpenClaw Gateway es el único dueño de canales.
+        // initTelegram(merged);
+        // initWhatsApp(merged, mainWindow);
         return { ok: true };
     });
 
-    ipcMain.handle('clawbot:get-stats', async () => {
-        const history = loadHistory(DATA_DIR);
-        const tg = history.filter(h => h.channel === 'telegram').length;
-        const wa = history.filter(h => h.channel === 'whatsapp').length;
-        return { total: tg + wa, telegram: tg, whatsapp: wa, errors: 0 };
+    ipcMain.handle('clawbot:get-wa-status', () => {
+        if (!waClient) return { status: 'disconnected' };
+        if (currentWaQr) return { status: 'waiting_qr', qr: currentWaQr };
+        return { status: 'connected' };
     });
-
-    ipcMain.handle('clawbot:get-skills', async () => {
-        const skillsDir = require('os').homedir() + '/.openclaw/skills';
-        if (!fs.existsSync(skillsDir)) return [];
-        return fs.readdirSync(skillsDir)
-            .filter(dir => fs.statSync(path.join(skillsDir, dir)).isDirectory())
-            .map(dir => {
-                const skillFile = path.join(skillsDir, dir, 'SKILL.md');
-                let content = '';
-                if (fs.existsSync(skillFile)) content = fs.readFileSync(skillFile, 'utf8');
-                return { name: dir, content };
-            });
-    });
-
-    ipcMain.handle('clawbot:save-skill', async (_e, skill) => {
-        const skillsDir = require('os').homedir() + '/.openclaw/skills';
-        const targetDir = path.join(skillsDir, skill.name);
-        if (!fs.existsSync(targetDir)) fs.mkdirSync(targetDir, { recursive: true });
-        fs.writeFileSync(path.join(targetDir, 'SKILL.md'), skill.content);
-        return { ok: true };
-    });
-
-    ipcMain.handle('clawbot:delete-skill', async (_e, name) => {
-        const targetDir = path.join(require('os').homedir() + '/.openclaw/skills', name);
-        if (fs.existsSync(targetDir)) fs.rmdirSync(targetDir, { recursive: true });
-        return { ok: true };
-    });
-
-    ipcMain.handle('clawbot:get-system-status', async () => {
-        const status = {
-            whatsapp: 'checking',
-            gateway: 'offline',
-            ai: 'online'
-        };
-
-        try {
-            const checkWA = async () => {
-                return new Promise((resolve) => {
-                    const req = net.request({ method: 'GET', protocol: 'http:', hostname: '127.0.0.1', port: 18789, path: '/' });
-                    req.on('response', (res) => {
-                        resolve(res.statusCode === 200 ? 'connected' : 'disconnected');
-                    });
-                    req.on('error', () => resolve('disconnected'));
-                    req.end();
-                });
-            };
-            const waRes = await checkWA();
-            status.whatsapp = waRes;
-            status.status = waRes;
-            status.gateway = waRes === 'connected' ? 'online' : 'offline';
-            status.message = waRes === 'connected' ? 'Conectado via OpenClaw' : 'Desconectado';
-        } catch (e) {
-            logger.error('Status check general error:', e.message);
-        }
-        return status;
-    });
-
-
-    ipcMain.handle('clawbot:send-command', async (_event, text) => {
-        logger.info(`[IPC] Comando recibido: ${text}`);
-        if (text && (text.startsWith('ERROR_REPORT:') || text.startsWith('DEBUG_TTS:') || text.startsWith('LOG:'))) {
-            if (text.startsWith('ERROR_REPORT:')) logger.error(`[Renderer Crash] ${text}`);
-            else logger.info(`[Renderer Debug] ${text}`);
-            return { ok: true };
-        }
-        try {
-            const currentConfig = loadConfig(DATA_DIR);
-            const isStartup = (text === 'GREET_USER_STARTUP');
-
-            if (!isStartup) {
-                mainWindow.webContents.send('clawbot:message-received', {
-                    channel: 'voice', text, userId: 'user', timestamp: Date.now()
-                });
-                saveToHistory({ channel: 'voice', type: 'received', text, timestamp: Date.now() }, DATA_DIR);
-            }
-
-            if (!isAgentActive(DATA_DIR, 'voz_vectron') && !isStartup) {
-                // Agent check logic...
-            } else if (!isStartup) {
-                touchAgentActivity(DATA_DIR, 'voz_vectron');
-            }
-
-            const response = await processMessageWithClawbot(text, currentConfig, DATA_DIR, mainWindow);
-            
-            if (!response) return { ok: false, error: 'Respuesta vacía' };
-
-            const actionMatch = response.match(/\[ACTION:(.*?)\|(.*?)\]/);
-            if (actionMatch) {
-                if (!isAgentActive(DATA_DIR, 'antigravity_control')) {
-                    const cleanResponse = response.replace(/\[ACTION:.*?\]/g, '').trim() + "\n\n(Nota: El agente 'Control Antigravity' está desactivado).";
-                    mainWindow.webContents.send('clawbot:response-chunk', { text: cleanResponse });
-                    return { ok: true, response: cleanResponse };
-                }
-                touchAgentActivity(DATA_DIR, 'antigravity_control');
-                const actionType = actionMatch[1];
-                const params = actionMatch[2];
-                if (actionType === 'OPEN_PROJECT') {
-                    const { exec } = require('child_process');
-                    exec(`cursor "${params}" || open "${params}"`);
-                } else if (actionType === 'RUN_BASH') {
-                    const { exec } = require('child_process');
-                    exec(params);
-                }
-            }
-
-            const cleanResponse = response.replace(/\[ACTION:.*?\]/g, '').trim();
-            if (mainWindow && mainWindow.webContents) {
-                // If not already sent by chunks in ai_processor
-                mainWindow.webContents.send('clawbot:message-sent', {
-                    channel: 'voice', text: cleanResponse, userId: 'vectron', timestamp: Date.now()
-                });
-            }
-            saveToHistory({ channel: 'voice', type: 'sent', text: cleanResponse, timestamp: Date.now() }, DATA_DIR);
-            return { ok: true, response: cleanResponse };
-        } catch (err) {
-            return { ok: false, error: err.message };
-        }
-    });
-
-    // ── Telegram Bot ──
-    // (Re-importado para mantener funcionalidad)
-    const TelegramBot = require('node-telegram-bot-api');
-    let telegramBot = null;
-    
-    async function startTelegramBot(token) {
-        if (telegramBot) { telegramBot.stopPolling(); telegramBot = null; }
-        try {
-            telegramBot = new TelegramBot(token, { polling: true });
-            telegramBot.on('message', async (msg) => {
-                const chatId = msg.chat.id;
-                const currentConfig = loadConfig(DATA_DIR);
-                const allowedChatId = currentConfig.clawbot?.telegram?.chatId;
-                if (!allowedChatId) {
-                    currentConfig.clawbot.telegram.chatId = chatId.toString();
-                    currentConfig.clawbot.telegram.enabled = true;
-                    require('./config').saveConfig(DATA_DIR, currentConfig);
-                }
-                const text = msg.text || '';
-                if (text.includes('tiktok.com') || text.includes('youtube.com')) {
-                    if (isAgentActive(DATA_DIR, 'video_pipeline')) touchAgentActivity(DATA_DIR, 'video_pipeline');
-                }
-                const response = await processMessageWithClawbot(text, currentConfig, DATA_DIR, mainWindow);
-                telegramBot.sendMessage(chatId, response);
-                saveToHistory({ channel: 'telegram', type: 'received', text, timestamp: Date.now() }, DATA_DIR);
-                saveToHistory({ channel: 'telegram', type: 'sent', text: response, timestamp: Date.now() }, DATA_DIR);
-            });
-            return { ok: true };
-        } catch (e) { return { ok: false, error: e.message }; }
-    }
-
-    if (config.clawbot?.telegram?.enabled && config.clawbot?.telegram?.token) {
-        startTelegramBot(config.clawbot.telegram.token);
-    }
 };
