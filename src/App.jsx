@@ -7,11 +7,14 @@ import AIHubModule from './components/AIHubModule';
 import SettingsModule from './components/SettingsModule';
 import LogsModule from './components/LogsModule';
 import AgentsModule from './components/AgentsModule';
+import TechRadarModule from './components/TechRadarModule';
+import SkillsModule from './components/SkillsModule';
 import NotificationCenter from './components/NotificationCenter';
 import NotificationModal from './components/NotificationModal';
 import TessChatWidget from './components/TessChatWidget';
+import { ProjectProvider } from './contexts/ProjectContext';
 
-const MODULES = ['projects', 'fichas', 'agents', 'notes', 'aihub', 'logs', 'settings'];
+const MODULES = ['projects', 'fichas', 'agents', 'notes', 'aihub', 'radar', 'skills', 'logs', 'settings'];
 
 function App() {
     const [toast, setToast] = useState(null);
@@ -93,6 +96,12 @@ function App() {
             unSubs.push(window.electronAPI.system.onNotify(data => data && addNotification(data)));
         }
 
+        if (window.electronAPI?.skills) {
+            unSubs.push(window.electronAPI.skills.onNavigateToSuggestions(() => {
+                setActiveModule('skills');
+            }));
+        }
+
         return () => {
             window.removeEventListener('system:notify', handleWinNotify);
             unSubs.forEach(u => u());
@@ -106,60 +115,67 @@ function App() {
             case 'notes': return <NotesModule showToast={showToast} />;
             case 'aihub': return <AIHubModule showToast={showToast} />;
             case 'agents': return <AgentsModule showToast={showToast} />;
+            case 'radar': return <TechRadarModule showToast={showToast} />;
+            case 'skills': return <SkillsModule showToast={showToast} />;
             case 'logs': return <LogsModule showToast={showToast} />;
             case 'settings': return <SettingsModule showToast={showToast} onNavigate={setActiveModule} />;
             default: return <ProjectsModule showToast={showToast} />;
         }
     };
 
+    const [tessOpen, setTessOpen] = useState(false);
+
     return (
-        <div className={`app-layout ${theme === 'light' ? 'light-mode' : ''}`}>
-            <div className="titlebar-drag" />
-            <div className="app-body">
-                <Sidebar
-                    activeModule={activeModule}
-                    onNavigate={setActiveModule}
-                    theme={theme}
-                    onToggleTheme={() => setTheme(prev => prev === 'dark' ? 'light' : 'dark')}
-                    systemStatus={systemStatus}
-                    notificationCount={notifications.filter(n => !n.read).length}
-                    onToggleNC={() => setNcOpen(!ncOpen)}
-                />
-                <main className="main-content">{renderModule()}</main>
-
-                {ncOpen && (
-                    <NotificationCenter
-                        notifications={notifications}
-                        onClose={() => setNcOpen(false)}
-                        onClearAll={() => {
-                           setNotifications([]);
-                           if (window.electronAPI.notifications.clear) window.electronAPI.notifications.clear();
-                        }}
-                        onDelete={id => setNotifications(prev => prev.filter(n => n.id !== id))}
-                        onMarkAllRead={() => setNotifications(prev => prev.map(n => ({ ...n, read: true })))}
-                        onAction={(id) => {
-                            const note = notifications.find(n => n.id === id);
-                            setSelectedNotify(note);
-                            setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
-                        }}
+        <ProjectProvider>
+            <div className={`app-layout ${theme === 'light' ? 'light-mode' : ''}`}>
+                <div className="titlebar-drag" />
+                <div className="app-body">
+                    <Sidebar
+                        activeModule={activeModule}
+                        onNavigate={setActiveModule}
+                        theme={theme}
+                        onToggleTheme={() => setTheme(prev => prev === 'dark' ? 'light' : 'dark')}
+                        systemStatus={systemStatus}
+                        notificationCount={notifications.filter(n => !n.read).length}
+                        onToggleNC={() => setNcOpen(!ncOpen)}
+                        onToggleTess={() => setTessOpen(prev => !prev)}
                     />
-                )}
+                    <main className="main-content">{renderModule()}</main>
 
-                {selectedNotify && (
-                    <NotificationModal 
-                        notification={selectedNotify}
-                        onClose={() => setSelectedNotify(null)}
-                        onSaveNotes={async (id, notes) => {
-                            await window.electronAPI.notifications.updateNotes(id, notes);
-                            setNotifications(prev => prev.map(n => n.id === id ? { ...n, notes } : n));
-                            showToast('Nota guardada correctamente', 'success');
-                        }}
-                    />
-                )}
+                    {ncOpen && (
+                        <NotificationCenter
+                            notifications={notifications}
+                            onClose={() => setNcOpen(false)}
+                            onClearAll={() => {
+                               setNotifications([]);
+                               if (window.electronAPI.notifications.clear) window.electronAPI.notifications.clear();
+                            }}
+                            onDelete={id => setNotifications(prev => prev.filter(n => n.id !== id))}
+                            onMarkAllRead={() => setNotifications(prev => prev.map(n => ({ ...n, read: true })))}
+                            onAction={(id) => {
+                                const note = notifications.find(n => n.id === id);
+                                setSelectedNotify(note);
+                                setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
+                            }}
+                        />
+                    )}
+
+                    {selectedNotify && (
+                        <NotificationModal 
+                            notification={selectedNotify}
+                            onClose={() => setSelectedNotify(null)}
+                            onSaveNotes={async (id, notes) => {
+                                await window.electronAPI.notifications.updateNotes(id, notes);
+                                setNotifications(prev => prev.map(n => n.id === id ? { ...n, notes } : n));
+                                showToast('Nota guardada correctamente', 'success');
+                            }}
+                        />
+                    )}
+                </div>
+                {toast && <div className={`toast ${toast.type}`}>{toast.message}</div>}
+                <TessChatWidget open={tessOpen} setOpen={setTessOpen} />
             </div>
-            {toast && <div className={`toast ${toast.type}`}>{toast.message}</div>}
-            <TessChatWidget />
-        </div>
+        </ProjectProvider>
     );
 }
 

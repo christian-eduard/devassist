@@ -1,0 +1,399 @@
+/* ── Project Detail View (PREMIUM REDESIGN V2) ── */
+.project-detail-container {
+    padding: 32px;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    background: transparent;
+    animation: fadeIn 0.4s ease-out;
+}
+
+.detail-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 32px;
+    gap: 24px;
+}
+
+.header-main {
+    flex: 1;
+}
+
+.header-main h1 {
+    font-size: 28px;
+    font-weight: 800;
+    margin-bottom: 4px;
+    background: linear-gradient(135deg, #fff 0%, rgba(255, 255, 255, 0.6) 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
+.path-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.4);
+    background: rgba(0, 0, 0, 0.2);
+    padding: 2px 8px;
+    border-radius: 4px;
+}
+
+.detail-tabs {
+    display: flex;
+    gap: 4px;
+    background: rgba(255, 255, 255, 0.03);
+    padding: 4px;
+    border-radius: 14px;
+    margin-bottom: 32px;
+    width: fit-content;
+    border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.detail-tabs .tab {
+    padding: 10px 20px;
+    border: none;
+    background: transparent;
+    color: rgba(255, 255, 255, 0.5);
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    border-radius: 10px;
+    transition: all 0.3s;
+}
+
+.detail-tabs .tab:hover {
+    color: #fff;
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.detail-tabs .tab.active {
+    background: rgba(124, 106, 247, 0.1);
+    color: var(--accent);
+    box-shadow: inset 0 0 10px rgba(124, 106, 247, 0.1);
+}
+
+.detail-content {
+    flex: 1;
+    min-height: 0;
+}
+
+/* ── DETAIL DASHBOARD ── */
+.dashboard-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 24px;
+}
+
+.stat-card {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 24px;
+    padding: 24px;
+    display: flex;
+    gap: 20px;
+    align-items: center;
+    transition: transform 0.3s, border-color 0.3s;
+}
+
+.stat-card:hover {
+    transform: translateY(-5px);
+    border-color: rgba(124, 106, 247, 0.3);
+}
+
+.stat-icon-bg {
+    width: 56px;
+    height: 56px;
+    border-radius: 16px;
+    background: rgba(124, 106, 247, 0.1);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--accent);
+}
+
+.stat-info h3 {
+    font-size: 11px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: rgba(255, 255, 255, 0.4);
+    margin-bottom: 4px;
+}
+
+.stat-value {
+    font-size: 28px;
+    font-weight: 800;
+    color: #fff;
+}
+
+.wide-card {
+    grid-column: 1 / -1;
+}
+
+.lang-card .card-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 24px;
+}
+
+.lang-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 16px;
+}
+
+.lang-pill {
+    background: rgba(0, 0, 0, 0.2);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: 12px;
+    padding: 12px;
+    position: relative;
+    overflow: hidden;
+}
+
+.lang-name {
+    font-size: 12px;
+    font-weight: 800;
+    color: #fff;
+    display: block;
+    margin-bottom: 4px;
+}
+
+.lang-count {
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.4);
+}
+
+.lang-progress {
+    position: absolute;
+    bottom: 0; left: 0;
+    height: 3px;
+    background: var(--accent);
+    opacity: 0.5;
+}
+
+/* ── ARCHITECTURE FLOW ── */
+.architecture-view {
+    height: 600px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.view-header h3 {
+    font-size: 14px;
+    font-weight: 800;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.5);
+}
+
+/* ── AI BOX ── */
+.ai-suggestion-box {
+    background: linear-gradient(135deg, rgba(124, 106, 247, 0.1) 0%, rgba(217, 70, 239, 0.1) 100%);
+    border: 1px solid rgba(124, 106, 247, 0.2);
+    border-radius: 24px;
+    padding: 32px;
+    position: relative;
+}
+
+.ai-suggestion-box h4 {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 18px;
+    color: #fff;
+    margin-bottom: 12px;
+}
+
+.ai-suggestion-box p {
+    color: rgba(255, 255, 255, 0.7);
+    line-height: 1.6;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+/* ── CODE BROWSER / FILE TREE ── */
+.code-browser {
+    display: flex;
+    gap: 0;
+    height: 650px;
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 20px;
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    overflow: hidden;
+}
+
+.browser-sidebar {
+    width: 360px;
+    border-right: 1px solid rgba(255, 255, 255, 0.06);
+    display: flex;
+    flex-direction: column;
+    background: rgba(0, 0, 0, 0.15);
+}
+
+.sidebar-header {
+    padding: 16px 20px;
+    font-size: 11px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: rgba(255, 255, 255, 0.4);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.tree-wrapper {
+    flex: 1;
+    overflow: auto;
+    padding: 8px 0;
+}
+
+.tree-node {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 16px;
+    cursor: pointer;
+    font-size: 13px;
+    color: rgba(255, 255, 255, 0.7);
+    transition: background 0.15s, color 0.15s;
+    user-select: none;
+}
+
+.tree-node:hover {
+    background: rgba(124, 106, 247, 0.08);
+    color: #fff;
+}
+
+.tree-node.selected {
+    background: rgba(124, 106, 247, 0.15);
+    color: var(--accent);
+}
+
+.tree-node .icon {
+    flex-shrink: 0;
+    opacity: 0.5;
+}
+
+.tree-node .icon.folder {
+    color: var(--accent);
+    opacity: 0.8;
+}
+
+.tree-node .name {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.browser-main {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.browser-main .empty-state {
+    text-align: center;
+    color: rgba(255, 255, 255, 0.3);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+}
+
+.browser-main .empty-state h3 {
+    font-size: 16px;
+    font-weight: 700;
+    color: rgba(255, 255, 255, 0.4);
+}
+
+.browser-main .empty-state p {
+    font-size: 13px;
+    color: rgba(255, 255, 255, 0.25);
+}
+
+/* ── EMPTY / HINT STATES ── */
+.empty-tree-hint {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    padding: 40px 20px;
+    color: rgba(255, 255, 255, 0.3);
+    text-align: center;
+}
+
+.empty-tree-hint p {
+    font-size: 12px;
+    line-height: 1.5;
+}
+
+.hint-box {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 16px 20px;
+    background: rgba(255, 180, 0, 0.06);
+    border: 1px solid rgba(255, 180, 0, 0.1);
+    border-radius: 12px;
+    color: rgba(255, 255, 255, 0.5);
+    font-size: 13px;
+    grid-column: 1 / -1;
+}
+
+.hint-box p {
+    margin: 0;
+}
+
+/* ── LOADING / ERROR STATES ── */
+.loading-state,
+.error-state-box {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    flex: 1;
+    gap: 16px;
+    color: rgba(255, 255, 255, 0.4);
+    text-align: center;
+}
+
+.error-state-box h2 {
+    font-size: 20px;
+    color: rgba(255, 255, 255, 0.7);
+}
+
+.error-actions {
+    margin-top: 8px;
+}
+
+.stat-label {
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.3);
+    display: block;
+    margin-top: 2px;
+}
+
+/* ── SPIN ANIMATION ── */
+.spin {
+    animation: spin 1.2s linear infinite;
+}
+
+@keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+/* ── DOCS VIEW ── */
+.docs-view {
+    padding: 8px 0;
+}

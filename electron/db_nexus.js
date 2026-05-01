@@ -3,17 +3,10 @@ const { Pool } = require('pg');
 const { eq, desc, and } = require('drizzle-orm');
 const schema = require('./schema');
 const logger = require('./ipc/logger');
-const { fichas, projects, settings, notifications, notes, agents, agentMemory } = schema;
+const environment = require('./environment');
+const { fichas, projects, settings, notifications, notes, agents, agentMemory, skills, aiUsage } = schema;
 
-const pool = new Pool({
-  host: 'localhost',
-  port: 54325,
-  user: 'devassist_admin',
-  password: 'devassist_secure_pass',
-  database: 'devassist_vault',
-  max: 15,
-  idleTimeoutMillis: 30000,
-});
+const pool = new Pool(environment.getDbConfig());
 
 const db = drizzle(pool, { schema });
 
@@ -46,6 +39,44 @@ async function initNexus() {
       );
       CREATE INDEX IF NOT EXISTS idx_agent_memory_agent_id ON agent_memory(agent_id);
       CREATE INDEX IF NOT EXISTS idx_agent_memory_timestamp ON agent_memory(timestamp DESC);
+
+      -- Skills table
+      CREATE TABLE IF NOT EXISTS skills (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        description TEXT,
+        author TEXT,
+        version TEXT,
+        downloads INTEGER DEFAULT 0,
+        stars INTEGER DEFAULT 0,
+        full_report TEXT,
+        is_suggested INTEGER DEFAULT 0,
+        suggested_at TIMESTAMPTZ,
+        installed INTEGER DEFAULT 0,
+        local_path TEXT,
+        remote_url TEXT,
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        updated_at TIMESTAMPTZ DEFAULT NOW()
+      );
+
+      -- AI Usage table (V8)
+      CREATE TABLE IF NOT EXISTS ai_usage (
+        id SERIAL PRIMARY KEY,
+        provider TEXT NOT NULL,
+        model TEXT,
+        tokens INTEGER DEFAULT 0,
+        cost_saved DOUBLE PRECISION DEFAULT 0.0,
+        timestamp TIMESTAMPTZ DEFAULT NOW()
+      );
+
+      -- Aplicar migraciones a la tabla projects si es necesario
+      ALTER TABLE projects ADD COLUMN IF NOT EXISTS full_context JSONB DEFAULT '{}';
+      ALTER TABLE projects ADD COLUMN IF NOT EXISTS file_tree JSONB DEFAULT '{}';
+      ALTER TABLE projects ADD COLUMN IF NOT EXISTS mermaid_structure TEXT;
+      ALTER TABLE projects ADD COLUMN IF NOT EXISTS code_stats JSONB DEFAULT '{}';
+      ALTER TABLE projects ADD COLUMN IF NOT EXISTS last_opened TIMESTAMPTZ;
+      ALTER TABLE projects ADD COLUMN IF NOT EXISTS monitoring INTEGER DEFAULT 0;
+      ALTER TABLE projects ADD COLUMN IF NOT EXISTS project_embedding vector(1536);
     `);
 
     // Seed TESS si no hay ningún agente creado
@@ -55,7 +86,7 @@ async function initNexus() {
         INSERT INTO agents (id, name, type, model, system_prompt, is_main)
         VALUES ($1, $2, $3, $4, $5, $6)
       `, [
-        'main', 'TESS', 'personal', 'gemini-2.5-flash',
+        'main', 'TESS', 'personal', 'gemini-1.5-flash',
         `Eres TESS (Tactical Executive Support System), la agente principal de DevAssist. Tu tono combina elegancia ejecutiva con intimidad directa. Hablas en español, eres directa, sofisticada y tienes un humor sutil e inteligente. Nunca preguntas "¿qué hacemos ahora?". Presentas opciones concretas. Proteges la atención del usuario filtrando lo que no es Top 3 de prioridades.`,
         1
       ]);
@@ -117,6 +148,21 @@ async function getFichas() {
   });
 }
 
+async function getFichaById(id) {
+  const rows = await db.select().from(fichas).where(eq(fichas.id, id));
+  if (rows.length === 0) return null;
+  const r = rows[0];
+  const meta = r.metadata || {};
+  const f = {
+    ...meta, ...r,
+    id: r.id, title: r.title, titulo: r.title,
+    transcripcion: r.transcripcion || meta.transcripcion || '',
+    url_original: r.urlOriginal,
+    data: JSON.stringify({...meta, ...r})
+  };
+  return f;
+}
+
 async function saveFicha(f) {
   const id = f.id || `f_${Date.now()}`;
   const metadata = f.data || f.details || f;
@@ -130,7 +176,27 @@ async function saveFicha(f) {
     videoName: f.videoName || f.video_name || metadata.videoName || metadata.video_name,
     metadata: metadata,
     embedding: f.embedding || null,
-    createdAt: f.createdAt ? new Date(f.createdAt) : new Date()
+    createdAt: f.createdAt ? new Date(f.createdAt) : new Date(),
+    // Phase A columns
+    tlDr: f.tlDr || metadata.tl_dr || metadata.resumen,
+    keyPoints: f.keyPoints || metadata.key_points || metadata.conceptos_clave || [],
+    verbatimQuotes: f.verbatimQuotes || metadata.verbatim_quotes || [],
+    implementationSteps: f.implementationSteps || metadata.implementation_steps || [],
+    comparisonMatrix: f.comparisonMatrix || metadata.comparison_matrix || {},
+    obsolescenceScore: f.obsolescenceScore !== undefined ? f.obsolescenceScore : (metadata.obsolescence_score || 5),
+    confidenceScore: f.confidenceScore !== undefined ? f.confidenceScore : (metadata.confidence_score || 0.0),
+    researchStatus: f.researchStatus || metadata.research_status || 'pending',
+    nextResearchAt: f.nextResearchAt ? new Date(f.nextResearchAt) : null,
+    researchLog: f.researchLog || metadata.research_log || [],
+    urgency: f.urgency !== undefined ? f.urgency : (metadata.urgency || metadata.prioridad || 3),
+    techStack: f.techStack || metadata.tech_stack || (metadata.herramientas ? metadata.herramientas.map(h => h.nombre) : []),
+    contentType: f.contentType || metadata.content_type || metadata.categoria || 'concept',
+    gdocId: f.gdocId || metadata.gdoc_id || null,
+    collaborators: f.collaborators || metadata.collaborators || [],
+    modelResponses: f.modelResponses || metadata.model_responses || {},
+    divergences: f.divergences || metadata.divergences || [],
+    sourceChannel: f.sourceChannel || metadata.source_channel || null,
+    processedAt: f.processedAt ? new Date(f.processedAt) : (metadata.processed_at ? new Date(metadata.processed_at) : null)
   }).onConflictDoUpdate({
     target: fichas.id,
     set: { 
@@ -138,9 +204,33 @@ async function saveFicha(f) {
         transcripcion: f.transcripcion,
         videoPath: f.videoPath || f.video_path || metadata.videoPath || metadata.video_path,
         videoName: f.videoName || f.video_name || metadata.videoName || metadata.video_name,
-        metadata: metadata
+        metadata: metadata,
+        // Phase A columns to update
+        tlDr: f.tlDr || metadata.tl_dr || metadata.resumen,
+        keyPoints: f.keyPoints || metadata.key_points || metadata.conceptos_clave || [],
+        verbatimQuotes: f.verbatimQuotes || metadata.verbatim_quotes || [],
+        implementationSteps: f.implementationSteps || metadata.implementation_steps || [],
+        comparisonMatrix: f.comparisonMatrix || metadata.comparison_matrix || {},
+        obsolescenceScore: f.obsolescenceScore !== undefined ? f.obsolescenceScore : (metadata.obsolescence_score || 5),
+        confidenceScore: f.confidenceScore !== undefined ? f.confidenceScore : (metadata.confidence_score || 0.0),
+        researchStatus: f.researchStatus || metadata.research_status || 'pending',
+        nextResearchAt: f.nextResearchAt ? new Date(f.nextResearchAt) : null,
+        researchLog: f.researchLog || metadata.research_log || [],
+        urgency: f.urgency !== undefined ? f.urgency : (metadata.urgency || metadata.prioridad || 3),
+        techStack: f.techStack || metadata.tech_stack || (metadata.herramientas ? metadata.herramientas.map(h => h.nombre) : []),
+        contentType: f.contentType || metadata.content_type || metadata.categoria || 'concept',
+        gdocId: f.gdocId || metadata.gdoc_id || null,
+        collaborators: f.collaborators || metadata.collaborators || [],
+        modelResponses: f.modelResponses || metadata.model_responses || {},
+        divergences: f.divergences || metadata.divergences || [],
+        sourceChannel: f.sourceChannel || metadata.source_channel || null,
+        processedAt: f.processedAt ? new Date(f.processedAt) : (metadata.processed_at ? new Date(metadata.processed_at) : null)
     }
   });
+}
+
+async function updateFicha(id, data) {
+    await db.update(fichas).set(data).where(eq(fichas.id, id));
 }
 
 async function deleteFicha(id) {
@@ -153,18 +243,116 @@ async function getProjects() {
 }
 
 async function saveProject(p) {
-    const id = p.id || `p_${Date.now()}`;
-    await db.insert(projects).values({
+    const id = (p.id || `p_${Date.now()}`).toString();
+    
+    // Obtención de datos previos para fusión segura (Fase 32)
+    let existing = null;
+    try {
+        const rows = await db.select().from(projects).where(eq(projects.id, id));
+        if (rows.length > 0) existing = rows[0];
+    } catch (e) {
+        logger.warn(`[DB:SaveProject] Verificación previa fallida para ${id}`);
+    }
+
+    const projectName = p.name || (existing ? existing.name : 'Sin nombre');
+    const projectPath = p.path || (existing ? existing.path : '');
+
+    const projectData = {
         id: id,
-        name: p.name,
-        description: p.description,
-        stack: p.stack || [],
+        name: projectName,
+        path: projectPath,
+        description: p.description || (existing ? existing.description : ''),
+        stack: p.stack || (existing ? existing.stack : []),
+        lastOpened: p.lastOpened ? new Date(p.lastOpened) : (existing ? existing.lastOpened : null),
+        monitoring: p.monitoring !== undefined ? (p.monitoring ? 1 : 0) : (existing ? existing.monitoring : 0),
+        fullContext: p.fullContext || p.full_context || (existing ? existing.fullContext : {}),
+        fileTree: p.fileTree || p.file_tree || (existing ? existing.fileTree : {}),
+        mermaidStructure: p.mermaidStructure || p.mermaid_structure || (existing ? existing.mermaidStructure : null),
+        codeStats: p.codeStats || p.code_stats || (existing ? existing.codeStats : {}),
+        projectEmbedding: p.projectEmbedding || (existing ? existing.projectEmbedding : null),
         updatedAt: new Date()
-    }).onConflictDoUpdate({
+    };
+
+    await db.insert(projects).values(projectData).onConflictDoUpdate({
         target: projects.id,
-        set: { name: p.name, description: p.description, stack: p.stack || [], updatedAt: new Date() }
+        set: {
+            name: projectData.name,
+            path: projectData.path,
+            description: projectData.description,
+            stack: projectData.stack,
+            lastOpened: projectData.lastOpened,
+            monitoring: projectData.monitoring,
+            fullContext: projectData.fullContext,
+            fileTree: projectData.fileTree,
+            mermaidStructure: projectData.mermaidStructure,
+            codeStats: projectData.codeStats,
+            projectEmbedding: projectData.projectEmbedding,
+            updatedAt: projectData.updatedAt
+        }
     });
+    logger.info(`[NEXUS] Proyecto '${projectName}' persistido exitosamente (ID: ${id})`);
 }
+
+async function searchProjects(queryEmbedding, limit = 5) {
+    if (!queryEmbedding || !Array.isArray(queryEmbedding)) return [];
+    
+    const { sql } = require('drizzle-orm');
+    const formattedVector = `[${queryEmbedding.join(',')}]`;
+    
+    const rows = await db.select()
+        .from(projects)
+        .orderBy(sql`${projects.projectEmbedding} <=> ${formattedVector}::vector`)
+        .limit(limit);
+    
+    return rows;
+}
+
+async function deleteProject(id) {
+    // 1. Eliminar fichas asociadas en el Vault (f_proj_ID)
+    const { sql } = require('drizzle-orm');
+    await db.delete(fichas).where(sql`id LIKE ${'f_proj_' + id + '%'}`);
+    
+    // 2. Eliminar el proyecto
+    await db.delete(projects).where(eq(projects.id, id));
+}
+
+async function getProjectById(id) {
+    if (!id) return null;
+    const stringId = id.toString();
+    try {
+        // Intento 1: Drizzle ORM (Tipo Seguro)
+        const rows = await db.select().from(projects).where(eq(projects.id, stringId));
+        if (rows.length > 0) return rows[0];
+
+        // Intento 2: SQL Nativo Fallback (Si Drizzleeq falla por casting)
+        logger.info(`[DB:GetProjectById] Reintentando búsqueda con SQL nativo para: ${stringId}`);
+        const { sql } = require('drizzle-orm');
+        const rawRows = await db.execute(sql`SELECT * FROM projects WHERE id = ${stringId}`);
+        if (rawRows.rows && rawRows.rows.length > 0) {
+            const r = rawRows.rows[0];
+            return {
+                id: r.id,
+                name: r.name,
+                path: r.path,
+                description: r.description,
+                stack: r.stack,
+                fullContext: r.full_context,
+                fileTree: r.file_tree,
+                mermaidStructure: r.mermaid_structure,
+                codeStats: r.code_stats,
+                updatedAt: r.updated_at
+            };
+        }
+
+        // Proyecto no encontrado por ningún método
+        logger.warn(`[DB:GetProjectById] ID ${stringId} no encontrado en la base de datos.`);
+        return null;
+    } catch (err) {
+        logger.error(`[DB:GetProjectById] Error crítico consultando ID ${id}: ${err.message}`);
+        throw err;
+    }
+}
+
 
 // --- NOTIFICATIONS & NOTES ---
 async function getNotifications() {
@@ -266,13 +454,92 @@ async function clearAgentMemory(agentId = 'main') {
   await db.delete(agentMemory).where(eq(agentMemory.agentId, agentId));
 }
 
+async function searchVault(queryEmbedding, limit = 3) {
+    if (!queryEmbedding || !Array.isArray(queryEmbedding) || queryEmbedding.length === 0) {
+        throw new Error('Vector embedding inválido provisto a searchVault');
+    }
+    const { sql } = require('drizzle-orm');
+    const formattedVector = `[${queryEmbedding.join(',')}]`;
+    const rows = await db.select()
+        .from(fichas)
+        .orderBy(sql`${fichas.embedding} <=> ${formattedVector}::vector`)
+        .limit(limit);
+    
+    return rows.map(r => {
+        const meta = r.metadata || {};
+        return {
+            id: r.id,
+            filename: r.filename,
+            path: r.path,
+            transcripcion: r.transcripcion || '',
+            investigacion_profunda: r.investigacion_profunda || '',
+            ...meta
+        };
+    });
+}
+
+// --- SKILLS CRUD ---
+async function getSkills() {
+  return await db.select().from(skills).orderBy(desc(skills.createdAt));
+}
+
+async function getSuggestedSkills() {
+  return await db.select().from(skills).where(eq(skills.isSuggested, 1)).orderBy(desc(skills.suggestedAt));
+}
+
+async function saveSkill(s) {
+  const id = s.id; // slug or unique id
+  await db.insert(skills).values({
+    ...s,
+    updatedAt: new Date()
+  }).onConflictDoUpdate({
+    target: skills.id,
+    set: {
+      ...s,
+      updatedAt: new Date()
+    }
+  });
+  return id;
+}
+
+async function deleteSkill(id) {
+  await db.delete(skills).where(eq(skills.id, id));
+}
+
+// --- AI USAGE (V8) ---
+async function saveAIUsage(data) {
+  await db.insert(aiUsage).values({
+    provider: data.provider,
+    model: data.model,
+    tokens: data.tokens || 0,
+    costSaved: data.costSaved || 0.0,
+    timestamp: new Date()
+  });
+}
+
+async function getAIUsageStats() {
+  const { sql } = require('drizzle-orm');
+  const rows = await db.select({
+    total_tokens: sql`SUM(tokens)`,
+    total_savings: sql`SUM(cost_saved)`
+  }).from(aiUsage);
+  
+  return {
+    tokens: rows[0]?.total_tokens || 0,
+    savings: rows[0]?.total_savings || 0
+  };
+}
+
 module.exports = { 
   initNexus, pool, db,
   getSettings, saveSetting,
-  getFichas, saveFicha, deleteFicha,
-  getProjects, saveProject,
+  getFichas, saveFicha, updateFicha, deleteFicha, getFichaById,
+  getProjects, getProjectById, saveProject, deleteProject,
   getNotifications, saveNotification,
   getNotes, saveNote,
   getAgents, getAgent, saveAgent, deleteAgent,
-  getAgentMemory, saveAgentMemory, clearAgentMemory
+  getAgentMemory, saveAgentMemory, clearAgentMemory,
+  getSkills, getSuggestedSkills, saveSkill, deleteSkill,
+  searchVault, searchProjects,
+  saveAIUsage, getAIUsageStats
 };

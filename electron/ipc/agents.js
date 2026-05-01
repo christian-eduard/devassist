@@ -6,6 +6,7 @@
 const { loadConfig } = require('./config');
 const nexus = require('../db_nexus');
 const logger = require('./logger');
+const aiRotator = require('../services/ai_rotator');
 
 const TESS_DEFAULT_PROMPT = `Eres TESS (Tactical Executive Support System), la agente principal de DevAssist.
 
@@ -181,79 +182,83 @@ async function triggerProfileExtraction(genAI, modelName) {
 
 /**
  * Función núcleo de chat con TESS
+ * Ahora con capa RAG (Retrieval-Augmented Generation) para proyectos y vault.
  */
 async function chatWithAgent(message, agentId = 'main', channel = 'local') {
     try {
-        // Guardar mensaje del usuario en memoria
+        logger.info(`[Agents:Chat] Procesando mensaje: "${message.substring(0, 50)}..."`);
+        
+        // 1. Guardar mensaje del usuario en memoria inmediata
         await nexus.saveAgentMemory({ agentId, role: 'user', content: message, channel });
 
-        // Verificar si es un comando especial
+        // 2. Verificar comandos rápidos
         const cmdResponse = await processCommand(message);
         if (cmdResponse) {
             await nexus.saveAgentMemory({ agentId, role: 'assistant', content: cmdResponse, channel });
             return cmdResponse;
         }
 
-        const config = await loadConfig();
-        const apiKey = config.gemini?.apiKey || config.apiKeys?.gemini;
-        if (!apiKey) {
-            throw new Error('No hay clave API de Gemini configurada en AI Hub.');
-        }
-
-        const agent = await nexus.getAgent(agentId);
-        // Motor estándar e IA
-        const { GoogleGenerativeAI } = require('@google/generative-ai');
-        const genAI = new GoogleGenerativeAI(apiKey);
-        let responseText = '';
-
-        // TESS: Intento con Vertex AI si está habilitado en config (Fase Enterprise)
-        if (config.gemini?.useVertex) {
-            try {
-                const { VertexAI } = require('@google-cloud/vertexai');
-                const vertexAI = new VertexAI({ project: config.gemini.project, location: config.gemini.location || 'us-central1' });
-                const generativeModel = vertexAI.getGenerativeModel({ model: modelName });
-                const request = {
-                    contents: await buildVertexMessages(agentId, message),
-                    system_instruction: { parts: [{ text: await getSystemPrompt(agentId) }] }
-                };
-                const streamingResp = await generativeModel.generateContent(request);
-                const response = await streamingResp.response;
-                responseText = response.candidates[0].content.parts[0].text;
-            } catch (err) {
-                logger.error('[Agents] Vertex AI Error (Ficha):', err.message);
-                throw err;
+        // 3. RECUPERACIÓN SEMÁNTICA (Capa Nexus RAG)
+        let semanticContext = '';
+        try {
+            const queryVector = await aiRotator.generateEmbedding(message);
+            
+            // Buscar proyectos relacionados
+            const relatedProjects = await nexus.searchProjects(queryVector, 2);
+            if (relatedProjects.length > 0) {
+                semanticContext += "\n--- PROYECTOS RELACIONADOS DETECTADOS ---\n";
+                relatedProjects.forEach(p => {
+                    semanticContext += `- ${p.name} (Ruta: ${p.path})\n  Tecnologías: ${p.stack?.join(', ')}\n  Metadata: ${JSON.stringify(p.codeStats || p.fullContext).substring(0, 500)}\n`;
+                });
             }
-        } else {
-            const geminiModel = genAI.getGenerativeModel({
-                model: modelName,
-                systemInstruction: await getSystemPrompt(agentId)
-            });
-            const history = await buildGeminiMessages(agentId, message);
-            const lastMessage = history.pop();
-            const chat = geminiModel.startChat({ history: history });
-            const result = await chat.sendMessage(lastMessage.parts[0].text);
-            responseText = result.response.text();
+
+            // Buscar fichas de conocimiento (Vault)
+            const relatedVault = await nexus.searchVault(queryVector, 3);
+            if (relatedVault.length > 0) {
+                semanticContext += "\n--- CONOCIMIENTO DEL VAULT ---\n";
+                relatedVault.forEach(f => {
+                    semanticContext += `- Título: ${f.title || f.titulo}\n  Resumen: ${f.tlDr || f.resumen || ''}\n  Contenido Clave: ${f.transcripcion?.substring(0, 1000) || ''}\n`;
+                });
+            }
+        } catch (ragErr) {
+            logger.warn(`[Agents:RAG] No se pudo recuperar contexto semántico: ${ragErr.message}`);
         }
 
-        // --- CAPA DE LIMPIEZA TESS (Blindaje de Éxitos) ---
+        // 4. Construir Prompt con Instrucciones de TESS + Contexto Recuperado
+        const systemPrompt = await getSystemPrompt(agentId);
+        const history = await nexus.getAgentMemory(agentId, 15);
+        
+        let promptTemplate = `SYSTEM INITIALIZATION: ${systemPrompt}\n\n`;
+        
+        if (semanticContext) {
+            promptTemplate += `CONTEXTO DINÁMICO RECUPERADO (Nexus RAG):\n${semanticContext}\n\n`;
+            promptTemplate += `INSTRUCCIÓN TÉCNICA: Si el usuario pregunta por el código, usa los datos anteriores para dar una respuesta precisa. No inventes rutas ni stacks.\n\n`;
+        }
+
+        promptTemplate += "CONVERSATION HISTORY:\n";
+        for (const m of history) {
+            promptTemplate += `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.content}\n`;
+        }
+        
+        promptTemplate += `User (Actual): ${message}\nAssistant:`;
+
+        // 5. Generación con Resiliencia (Multi-Modelo)
+        let responseText = await aiRotator.complete(promptTemplate, {
+            providers: ['gemini', 'openrouter', 'groq']
+        });
+
+        // 6. Limpieza Quirúrgica (Estilo TESS)
         responseText = responseText.replace(/^(Reasoning|Thinking|Razonamiento|\[TESS\]|🤖):\s*/i, '');
         responseText = responseText.replace(/Reasoning:[\s\S]*?(?=\n\n|$)/gi, ''); 
         responseText = responseText.trim();
 
-        // Guardar respuesta en memoria
+        // 7. Persistir Respuesta
         await nexus.saveAgentMemory({ agentId, role: 'assistant', content: responseText, channel });
         
-        // Fase 4: Trigger asíncrono pasivo de aprendizaje
-        process.nextTick(() => {
-            triggerProfileExtraction(genAI, modelName).catch(() => {});
-        });
-
         return responseText;
     } catch (e) {
-        logger.error('[Agents] Error en chat:', e.message);
-        return e.message.includes('API') ?
-            'No tengo acceso al motor de IA en este momento. Verifica tu clave de Gemini en AI Hub.' :
-            `Error técnico: ${e.message}`;
+        logger.error('[Agents] Error crítico en core loop:', e.message);
+        return `Error en el núcleo de TESS: ${e.message}. Verifique la conexión a la base de datos Nexus y las API Keys.`;
     }
 }
 

@@ -7,7 +7,7 @@ async function fix() {
     
     config.gemini = config.gemini || {};
     config.gemini.apiKey = forcedKey;
-    config.gemini.model = 'gemini-2.5-flash';
+    config.gemini.model = 'gemini-1.5-flash';
     
     config.apiKeys = config.apiKeys || {};
     config.apiKeys.gemini = forcedKey;

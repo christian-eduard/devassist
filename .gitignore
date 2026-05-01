@@ -124,6 +124,7 @@ Thumbs.db
 
 # Electron build directory
 dist/
+dist-electron/
 build/
 
 # OpenClaw specifics
@@ -138,5 +139,15 @@ node_modules_broken/
 # WASM / ORT binaries (large, not needed in source)
 public/ort*.wasm
 public/ort*.mjs
-public/ort*.mjs
 scripts/restore_legacy_keys.js
+
+# Debug / scratch files (root level)
+app_logs.txt
+vite_logs.txt
+electron_debug.txt
+internal_test.js
+list_models.js
+list_models_final.js
+list_openrouter.js
+list_openrouter_all.js
+test_freeride.js

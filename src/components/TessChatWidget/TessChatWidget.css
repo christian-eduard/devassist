@@ -1,68 +1,4 @@
-/* TessChatWidget.css — TESS Floating Assistant */
-
-/* ─── Floating Action Button ─── */
-.tess-fab {
-    position: fixed;
-    bottom: 28px;
-    right: 28px;
-    z-index: 9999;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 12px 18px 12px 14px;
-    border-radius: 30px;
-    background: linear-gradient(135deg, #7c3aed, #6d28d9);
-    border: 1px solid rgba(139, 92, 246, 0.5);
-    box-shadow: 0 8px 32px rgba(109, 40, 217, 0.45), 0 2px 8px rgba(0,0,0,0.4);
-    cursor: pointer;
-    color: #fff;
-    font-size: 14px;
-    font-weight: 700;
-    letter-spacing: 0.03em;
-    transition: all 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
-    user-select: none;
-    font-family: var(--font-display, 'Inter', sans-serif);
-}
-
-.tess-fab:hover {
-    transform: translateY(-3px) scale(1.04);
-    box-shadow: 0 12px 40px rgba(109, 40, 217, 0.6), 0 4px 12px rgba(0,0,0,0.4);
-    background: linear-gradient(135deg, #8b5cf6, #7c3aed);
-}
-
-.tess-fab:active {
-    transform: scale(0.97);
-}
-
-.tess-fab--active {
-    padding: 14px;
-    border-radius: 50%;
-    background: #6d28d9;
-}
-
-.tess-fab-emoji {
-    font-size: 20px;
-    line-height: 1;
-    transition: transform 0.2s ease;
-}
-
-.tess-fab-label {
-    font-size: 13px;
-    font-weight: 700;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-}
-
-/* Pulse animation for new messages */
-@keyframes tessRing {
-    0%   { box-shadow: 0 0 0 0 rgba(139, 92, 246, 0.7); }
-    70%  { box-shadow: 0 0 0 14px rgba(139, 92, 246, 0); }
-    100% { box-shadow: 0 0 0 0 rgba(139, 92, 246, 0); }
-}
-
-.tess-fab--pulse {
-    animation: tessRing 1.5s ease-out 2;
-}
+/* TESS Panel Overlay — Simplificado (Fase 24) */
 
 /* ─── Chat Panel ─── */
 .tess-panel {
@@ -365,4 +301,58 @@
 @keyframes spin {
     from { transform: rotate(0deg); }
     to { transform: rotate(360deg); }
+}
+
+/* Sidebar Mini Bot Icon Fixed Status */
+.tess-pin-mini.fixed {
+    color: var(--accent-primary);
+    background: rgba(79, 70, 229, 0.1);
+    border: 1px solid rgba(79, 70, 229, 0.3);
+    border-radius: 8px;
+    margin-bottom: 8px;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.tess-pin-mini.fixed:hover {
+    background: rgba(79, 70, 229, 0.25);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    color: #fff;
+}
+
+/* Project detail error state box */
+.error-state-box {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    min-height: 400px;
+    color: #94a3b8;
+    text-align: center;
+    padding: 40px;
+}
+
+.error-state-box h2 {
+    color: #f1f5f9;
+    margin: 16px 0 8px;
+}
+
+.error-state-box code {
+    background: rgba(0,0,0,0.3);
+    padding: 2px 6px;
+    border-radius: 4px;
+    color: #8b5cf6;
+}
+
+.error-actions {
+    display: flex;
+    gap: 12px;
+    margin-top: 24px;
+}
+
+.hint {
+    font-size: 11px;
+    margin-top: 20px;
+    opacity: 0.6;
 }

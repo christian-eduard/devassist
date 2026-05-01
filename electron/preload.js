@@ -10,6 +10,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     getCacheStats: () => ipcRenderer.invoke('config:get-cache-stats'),
     clearCache: () => ipcRenderer.invoke('config:clear-cache'),
     openUrl: (url) => ipcRenderer.invoke('config:open-url', url),
+    loadOpenClaw: () => ipcRenderer.invoke('config:load-openclaw'),
+    saveOpenClaw: (ocConfig) => ipcRenderer.invoke('config:save-openclaw', ocConfig),
   },
 
   // ── Projects ──
@@ -18,9 +20,21 @@ contextBridge.exposeInMainWorld('electronAPI', {
     add: (projectPath) => ipcRenderer.invoke('projects:add', projectPath),
     remove: (id) => ipcRenderer.invoke('projects:remove', id),
     update: (id, updates) => ipcRenderer.invoke('projects:update', id, updates),
+    getById: (id) => ipcRenderer.invoke('projects:get-by-id', id),
+    deepScan: (id) => ipcRenderer.invoke('projects:deep-scan', id),
     selectFolder: () => ipcRenderer.invoke('projects:select-folder'),
     openAntigravity: (projectPath) => ipcRenderer.invoke('projects:open-antigravity', projectPath),
     openFinder: (projectPath) => ipcRenderer.invoke('projects:open-finder', projectPath),
+    onScannerProgress: (callback) => {
+      const handler = (_event, data) => callback(data);
+      ipcRenderer.on('scanner:progress', handler);
+      return () => ipcRenderer.removeListener('scanner:progress', handler);
+    },
+    onRefresh: (callback) => {
+      const handler = () => callback();
+      ipcRenderer.on('projects:refresh', handler);
+      return () => ipcRenderer.removeListener('projects:refresh', handler);
+    },
   },
 
   // ── Fichas ──
@@ -68,7 +82,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     fetchOpenRouterModels: () => ipcRenderer.invoke('ai:fetch-openrouter-models'),
     saveProvider: (provider) => ipcRenderer.invoke('ai:save-provider', provider),
     updateAssignment: (fnName, assignment) => ipcRenderer.invoke('ai:update-assignment', fnName, assignment),
-    analyzeVision: (imageB64, prompt) => ipcRenderer.invoke('ai:analyze-vision', imageB64, prompt)
+    analyzeVision: (imageB64, prompt) => ipcRenderer.invoke('ai:analyze-vision', imageB64, prompt),
+    getUsageStats: () => ipcRenderer.invoke('ai:get-usage-stats')
   },
 
   system: {
@@ -125,4 +140,52 @@ contextBridge.exposeInMainWorld('electronAPI', {
     clearMemory: (agentId) => ipcRenderer.invoke('agents:clear-memory', agentId),
   },
 
+  // ── Google Workspace (Fase 6) ──
+  google: {
+    startAuth: () => ipcRenderer.invoke('google:start-auth'),
+    getStatus: () => ipcRenderer.invoke('google:get-status'),
+    exportFicha: (ficha) => ipcRenderer.invoke('google:export-ficha', ficha),
+    findSlots: (data) => ipcRenderer.invoke('google:find-slots', data),
+    scheduleLearning: (data) => ipcRenderer.invoke('google:schedule-learning', data),
+    syncCalendar: () => ipcRenderer.invoke('google:sync-calendar')
+  },
+
+  // ── Tutorial Engine (Fase 7) ──
+  tutorials: {
+    generate: (fichaId) => ipcRenderer.invoke('tutorials:generate', fichaId),
+  },
+
+  // ── Tech Radar (Fase 8) ──
+  radar: {
+    getAll: () => ipcRenderer.invoke('radar:get-all'),
+    updateStatus: (data) => ipcRenderer.invoke('radar:update-status', data),
+    triggerScan: () => ipcRenderer.invoke('radar:trigger-scan')
+  },
+
+  // ── Skills (Fase 11) ──
+  skills: {
+    load: () => ipcRenderer.invoke('skills:load'),
+    getSuggested: () => ipcRenderer.invoke('skills:get-suggested'),
+    triggerScan: () => ipcRenderer.invoke('skills:trigger-scan'),
+    delete: (id) => ipcRenderer.invoke('skills:delete', id),
+    openFolder: (id) => ipcRenderer.invoke('skills:open-folder', id),
+    onNavigateToSuggestions: (callback) => {
+      const handler = () => callback();
+      ipcRenderer.on('skills:navigate-to-suggestions', handler);
+      return () => ipcRenderer.removeListener('skills:navigate-to-suggestions', handler);
+    }
+  },
+
+  // ── Browsing & Gateway (Fase 16) ──
+  browsing: {
+    getStatus: () => ipcRenderer.invoke('browsing:get-status'),
+    restartGateway: () => ipcRenderer.invoke('browsing:restart-gateway'),
+  },
+
+  // ── Generic Event Bridge (Para Telemetría V9+) ──
+  on: (channel, callback) => {
+    const handler = (_event, ...args) => callback(...args);
+    ipcRenderer.on(channel, handler);
+    return () => ipcRenderer.removeListener(channel, handler);
+  }
 });

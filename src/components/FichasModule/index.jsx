@@ -18,7 +18,9 @@ import {
     Sparkles,
     Book,
     AlertCircle,
-    Github
+    AlertTriangle,
+    Github,
+    Calendar
 } from 'lucide-react';
 import './FichasModule.css';
 
@@ -38,6 +40,8 @@ const FichasModule = ({ showToast, addNotification }) => {
     const [activeTab, setActiveTab] = useState('general');
     const [researchResult, setResearchResult] = useState(null);
     const [isResearchingPoint, setIsResearchingPoint] = useState(false);
+    const [tutorialMarkdown, setTutorialMarkdown] = useState('');
+    const [isGeneratingTutorial, setIsGeneratingTutorial] = useState(false);
     const activeProcessId = useRef(null);
 
     useEffect(() => {
@@ -263,6 +267,15 @@ const FichasModule = ({ showToast, addNotification }) => {
         setSelectedFicha(updated);
     };
 
+    // ── Sincronización de Tutorial con Ficha V44 ──
+    useEffect(() => {
+        if (selectedFicha) {
+            setTutorialMarkdown(selectedFicha.manualUso || selectedFicha.manual_uso || '');
+        } else {
+            setTutorialMarkdown('');
+        }
+    }, [selectedFicha]);
+
     const [isGeneratingResearch, setIsGeneratingResearch] = useState(false);
 
     const handleGenerateDeepResearch = async () => {
@@ -327,6 +340,57 @@ const FichasModule = ({ showToast, addNotification }) => {
             showToast('Error en investigación: ' + err.message, 'error');
         } finally {
             setIsResearchingPoint(false);
+        }
+    };
+
+    const [isScheduling, setIsScheduling] = useState(false);
+    const handleScheduleLearning = async () => {
+        if (!selectedFicha) return;
+        setIsScheduling(true);
+        try {
+            // 1. Buscar hueco (default 45 min)
+            const slotRes = await window.electronAPI.google.findSlots({ durationMinutes: 45 });
+            if (!slotRes.success) throw new Error('No se encontraron huecos disponibles');
+
+            const confirm = window.confirm(`He encontrado un hueco libre: ${slotRes.slot.display}\n\n¿Quieres que agende una sesión de aprendizaje para "${selectedFicha.titulo}"?`);
+            
+            if (confirm) {
+                const scheduleRes = await window.electronAPI.google.scheduleLearning({
+                    title: `📖 Aprendizaje: ${selectedFicha.titulo}`,
+                    start: slotRes.slot.start,
+                    end: slotRes.slot.end,
+                    fichaId: selectedFicha.id
+                });
+                if (scheduleRes.success) {
+                    showToast('Evento agendado en Google Calendar', 'success');
+                }
+            }
+        } catch (err) {
+            showToast('Error de agenda: ' + err.message, 'error');
+        } finally {
+            setIsScheduling(false);
+        }
+    };
+
+    const handleGenerateTutorial = async () => {
+        if (!selectedFicha) return;
+        setIsGeneratingTutorial(true);
+        showToast('Generando tutorial experto...', 'info');
+        try {
+            const result = await window.electronAPI.tutorials.generate(selectedFicha.id);
+            if (result.success) {
+                const tutorialContent = result.markdown || result.tutorial;
+                setTutorialMarkdown(tutorialContent);
+                showToast('Tutorial generado con éxito', 'success');
+                // Recargar ficha para tener los datos guardados en sincronía
+                loadFichas();
+            } else {
+                throw new Error(result.error);
+            }
+        } catch (err) {
+            showToast('Error al generar tutorial: ' + err.message, 'error');
+        } finally {
+            setIsGeneratingTutorial(false);
         }
     };
 
@@ -657,6 +721,9 @@ const FichasModule = ({ showToast, addNotification }) => {
                                 >
                                     {selectedFicha.revisada ? <><Check size={14} /> Revisada</> : 'Marcar revisada'}
                                 </button>
+                                <button className="btn-icon" onClick={handleScheduleLearning} title="Agendar sesión de aprendizaje (TESS Secretary)" disabled={isScheduling}>
+                                    <Calendar size={18} className={isScheduling ? 'spin' : ''} />
+                                </button>
                                 <button className="btn-icon" onClick={() => window.electronAPI.config.openUrl(selectedFicha.url_video)} title="Ver original">
                                     <Globe size={18} />
                                 </button>
@@ -668,86 +735,110 @@ const FichasModule = ({ showToast, addNotification }) => {
 
                         <div className="detail-tabs">
                             <button className={`tab-btn ${activeTab === 'general' ? 'active' : ''}`} onClick={() => setActiveTab('general')}>
-                                <Sparkles size={14} /> Concepto
+                                <Sparkles size={14} /> Resumen Ejecutivo
+                            </button>
+                            <button className={`tab-btn ${activeTab === 'stack' ? 'active' : ''}`} onClick={() => setActiveTab('stack')}>
+                                <Settings size={14} /> Tech Stack & Tools
                             </button>
                             <button className={`tab-btn ${activeTab === 'research' ? 'active' : ''}`} onClick={() => setActiveTab('research')}>
-                                <Globe size={14} /> Análisis Deep
+                                <Globe size={14} /> Research & Implementation
                             </button>
                             <button className={`tab-btn ${activeTab === 'transcript' ? 'active' : ''}`} onClick={() => setActiveTab('transcript')}>
-                                <FileText size={14} /> Transcripción
+                                <FileText size={14} /> Transcripción RAW
                             </button>
-                            <button className={`tab-btn ${activeTab === 'tools' ? 'active' : ''}`} onClick={() => setActiveTab('tools')}>
-                                <Settings size={14} /> Stack
+                            <button className={`tab-btn ${activeTab === 'tutorial' ? 'active' : ''}`} onClick={() => setActiveTab('tutorial')}>
+                                <Book size={14} /> Tutorial Engine
                             </button>
-                            {selectedFicha.manual_uso && (
-                                <button className={`tab-btn ${activeTab === 'manual' ? 'active' : ''}`} onClick={() => setActiveTab('manual')}>
-                                    <Book size={14} /> Guía
-                                </button>
-                            )}
                         </div>
 
-                        {/* ── Tab: General ── */}
+                        {/* ── Tab: General (TL;DR, Key Points, Obsolescence) ── */}
                         {activeTab === 'general' && (
                             <div className="tab-content">
-                                {selectedFicha.videoName && (
-                                    <button className="btn-video-large" onClick={() => setShowVideoModal(true)}>
-                                        <Play size={20} fill="currentColor" /> Ver Video de TikTok
-                                    </button>
-                                )}
+                                <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 250px', gap: '20px' }}>
+                                    <div>
+                                        <section className="detail-section">
+                                            <h3 className="section-title"><Database size={14} /> TL;DR / Resumen de Valor</h3>
+                                            <p className="concept-text" style={{ fontSize: '1.05rem' }}>{selectedFicha.tlDr || selectedFicha.concepto || selectedFicha.resumen}</p>
+                                        </section>
 
-                                <section className="detail-section">
-                                    <h3 className="section-title"><Database size={14} /> Resumen de Valor</h3>
-                                    <p className="concept-text">{selectedFicha.concepto}</p>
-                                </section>
+                                        {selectedFicha.keyPoints && selectedFicha.keyPoints.length > 0 && (
+                                            <section className="detail-section">
+                                                <h3 className="section-title"><Check size={14} /> Key Points</h3>
+                                                <ul style={{ listStyleType: 'disc', paddingLeft: '20px', color: 'var(--text-2)' }}>
+                                                    {selectedFicha.keyPoints.map((kp, idx) => (
+                                                        <li key={idx} style={{ marginBottom: '8px' }}>{kp}</li>
+                                                    ))}
+                                                </ul>
+                                            </section>
+                                        )}
 
-                                {selectedFicha.puntos_exploracion && selectedFicha.puntos_exploracion.length > 0 && (
-                                    <section className="detail-section">
-                                        <h3 className="section-title"><Lightbulb size={14} /> Exploración Estratégica</h3>
-                                        <div className="exploration-grid">
-                                            {selectedFicha.puntos_exploracion.map((p, i) => (
-                                                <div key={i} className="exploration-card">
-                                                    <span className="explore-topic">{p.tema}</span>
-                                                    <p className="explore-question">{p.pregunta}</p>
-                                                    <button
-                                                        className={`btn-explore ${p.resultado ? 'has-result' : ''}`}
-                                                        onClick={() => handleResearchPoint(p)}
-                                                        disabled={isResearchingPoint}
-                                                        style={p.resultado ? { background: 'rgba(124, 106, 247, 0.2)', border: '1px solid var(--accent)' } : {}}
-                                                    >
-                                                        {isResearchingPoint ? 'Procesando...' : (p.resultado ? 'Ver Resultados' : 'Investigar')} <Sparkles size={12} />
-                                                    </button>
-                                                </div>
-                                            ))}
+                                        {selectedFicha.videoName && (
+                                            <button className="btn-video-large" onClick={() => setShowVideoModal(true)}>
+                                                <Play size={20} fill="currentColor" /> Ver Video Relacionado
+                                            </button>
+                                        )}
+                                    </div>
+                                    <div style={{ background: 'rgba(255,255,255,0.02)', padding: '20px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)' }}>
+                                        <h4 style={{ marginBottom: '15px', color: 'var(--text-2)', fontSize: '0.85rem', textTransform: 'uppercase' }}>Metadatos Vault</h4>
+                                        <div style={{ marginBottom: '15px' }}>
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px' }}>
+                                                <span style={{ fontSize: '0.9rem', color: 'var(--text-3)' }}>Confianza:</span>
+                                                <span style={{ fontWeight: 'bold', color: 'var(--accent)' }}>{(selectedFicha.confidenceScore * 100).toFixed(0)}%</span>
+                                            </div>
+                                            <div style={{ background: 'var(--background-alt)', height: '6px', borderRadius: '3px', overflow: 'hidden' }}>
+                                                <div style={{ width: `${selectedFicha.confidenceScore * 100}%`, height: '100%', background: 'var(--accent)' }}></div>
+                                            </div>
                                         </div>
-                                    </section>
-                                )}
-
-                                <section className="detail-section highlight">
-                                    <h3 className="section-title"><Rocket size={14} /> Aplicación en Mis Proyectos</h3>
-                                    {selectedFicha.aplicaciones_proyectos && selectedFicha.aplicaciones_proyectos.length > 0 ? (
-                                        <div className="project-matches">
-                                            {selectedFicha.aplicaciones_proyectos.map((m, i) => (
-                                                <div key={i} className="project-match-card">
-                                                    <div className="match-header">
-                                                        <span className="match-name">{m.proyecto}</span>
-                                                        <span className="match-relevance">
-                                                            Puntuación: {m.relevancia}
-                                                        </span>
-                                                    </div>
-                                                    <p className="match-suggestion">{m.sugerencia}</p>
-                                                </div>
-                                            ))}
+                                        <div style={{ marginBottom: '15px' }}>
+                                            <span style={{ fontSize: '0.9rem', color: 'var(--text-3)', display: 'block', marginBottom: '5px' }}>Obsolescencia ({selectedFicha.obsolescenceScore}/10):</span>
+                                            <div style={{ display: 'flex', gap: '3px' }}>
+                                                {[...Array(10)].map((_, i) => (
+                                                    <div key={i} style={{ flex: 1, height: '4px', borderRadius: '2px', background: i < selectedFicha.obsolescenceScore ? (selectedFicha.obsolescenceScore > 7 ? '#ff4d4d' : '#f5a623') : 'var(--background-alt)' }}></div>
+                                                ))}
+                                            </div>
                                         </div>
-                                    ) : (
-                                        <p className="applicability-text">Sin aplicaciones directas detectadas en los proyectos actuales.</p>
-                                    )}
-                                </section>
+                                        <div>
+                                            <span style={{ fontSize: '0.9rem', color: 'var(--text-3)', display: 'block', marginBottom: '5px' }}>Urgencia: {selectedFicha.urgency}/5</span>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
                         )}
 
-                        {/* ── Tab: Investigación (Análisis Deep) ── */}
+                        {/* ── Tab: Investigación y Ejecución (Deep, Matrices, Pasos) ── */}
                         {activeTab === 'research' && (
                             <div className="tab-content">
+                                {selectedFicha.implementationSteps && selectedFicha.implementationSteps.length > 0 && (
+                                    <section className="detail-section">
+                                        <h3 className="section-title"><Check size={14} /> Pasos de Implementación</h3>
+                                        <ol style={{ paddingLeft: '20px', color: 'var(--text-1)' }}>
+                                            {selectedFicha.implementationSteps.map((step, idx) => (
+                                                <li key={idx} style={{ marginBottom: '10px', background: 'var(--background-alt)', padding: '10px', borderRadius: '6px' }}>
+                                                    <strong>Paso {step.step || idx+1}:</strong> {step.action}
+                                                </li>
+                                            ))}
+                                        </ol>
+                                    </section>
+                                )}
+
+                                {selectedFicha.verbatimQuotes && selectedFicha.verbatimQuotes.length > 0 && (
+                                    <section className="detail-section">
+                                        <h3 className="section-title"><FileText size={14} /> Citas Textuales Destacadas</h3>
+                                        {selectedFicha.verbatimQuotes.map((quote, idx) => (
+                                            <blockquote key={idx} style={{ 
+                                                borderLeft: '3px solid var(--accent-3)', 
+                                                padding: '10px 15px', 
+                                                margin: '0 0 15px 0',
+                                                background: 'rgba(255,255,255,0.02)',
+                                                fontStyle: 'italic',
+                                                color: 'var(--text-2)'
+                                            }}>
+                                                "{quote}"
+                                            </blockquote>
+                                        ))}
+                                    </section>
+                                )}
+
                                 {selectedFicha.investigacion_profunda ? (
                                     <section className="detail-section">
                                         <h3 className="section-title"><Globe size={14} /> Informe Técnico CTO</h3>
@@ -766,15 +857,6 @@ const FichasModule = ({ showToast, addNotification }) => {
                                                 ))}
                                             </div>
                                         </div>
-                                        <button
-                                            className="btn btn-outline"
-                                            style={{ marginTop: '20px', width: '100%', borderColor: 'var(--accent)', color: 'var(--accent)' }}
-                                            onClick={handleGenerateDeepResearch}
-                                            disabled={isGeneratingResearch}
-                                        >
-                                            <Sparkles size={14} style={{ marginRight: '8px' }} />
-                                            {isGeneratingResearch ? 'Analizando infraestructura a fondo...' : 'Regenerar Informe CTO Técnico'}
-                                        </button>
                                     </section>
                                 ) : (
                                     <div className="empty-state" style={{ flexDirection: 'column', gap: '20px' }}>
@@ -787,6 +869,71 @@ const FichasModule = ({ showToast, addNotification }) => {
                                         >
                                             <Globe size={18} />
                                             {isGeneratingResearch ? 'Tomando control absoluto (Analizando)...' : 'Analizar a Nivel Experto (Deep Search)'}
+                                        </button>
+                                    </div>
+                                )}
+
+                                {selectedFicha.divergences && selectedFicha.divergences.length > 0 && (
+                                    <section className="detail-section" style={{ marginTop: '20px' }}>
+                                        <h3 className="section-title" style={{ color: '#ff4d4d' }}><AlertTriangle size={14} /> Discrepancias Multi-Modelo Detectadas</h3>
+                                        {selectedFicha.divergences.map((div, idx) => (
+                                            <div key={idx} style={{ 
+                                                borderLeft: '3px solid #ff4d4d', 
+                                                padding: '15px', 
+                                                background: 'rgba(255, 77, 77, 0.05)',
+                                                borderRadius: '0 8px 8px 0',
+                                                marginBottom: '15px'
+                                            }}>
+                                                <div style={{ display: 'flex', gap: '10px', marginBottom: '10px' }}>
+                                                    {div.models.map(m => (
+                                                        <span key={m} style={{ fontSize: '0.75rem', padding: '2px 6px', background: 'var(--background-dark)', borderRadius: '4px', border: '1px solid currentColor', color: '#ff4d4d' }}>{m}</span>
+                                                    ))}
+                                                </div>
+                                                <p style={{ color: 'var(--text-1)', lineHeight: '1.5', margin: 0, fontSize: '0.95rem' }}>{div.analysis.replace(/\*\*/g, '')}</p>
+                                            </div>
+                                        ))}
+                                    </section>
+                                )}
+                            </div>
+                        )}
+
+                        {/* ── Tab: Tutorial Engine (Fase 7) ── */}
+                        {activeTab === 'tutorial' && (
+                            <div className="tab-content">
+                                {tutorialMarkdown ? (
+                                    <section className="detail-section">
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
+                                            <h3 className="section-title"><Book size={14} /> Tutorial paso a paso</h3>
+                                            <button className="btn btn-sm" onClick={() => window.electronAPI.fs.writeFile(`${selectedFicha.titulo}_Tutorial.md`, tutorialMarkdown)}>
+                                                Exportar .md
+                                            </button>
+                                        </div>
+                                        <div className="transcription-box tutorial-box" style={{ background: '#0a0a1a', border: '1px solid var(--accent-2)' }}>
+                                            <div className="research-content" style={{ color: '#e0e0f0' }}>
+                                                {tutorialMarkdown.split('\n').map((line, i) => (
+                                                    <p key={i} style={{ 
+                                                        marginBottom: line.trim() === '' ? '10px' : '4px',
+                                                        fontWeight: line.startsWith('#') ? '700' : '400',
+                                                        color: line.startsWith('#') ? 'var(--accent-2)' : 'inherit',
+                                                        fontSize: line.startsWith('#') ? '1.2rem' : '0.95rem'
+                                                    }}>
+                                                        {line}
+                                                    </p>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    </section>
+                                ) : (
+                                    <div className="empty-state" style={{ flexDirection: 'column', gap: '20px' }}>
+                                        <p>No se ha generado un tutorial para esta investigación.</p>
+                                        <button
+                                            className="btn btn-primary btn-large"
+                                            style={{ display: 'flex', alignItems: 'center', gap: '10px' }}
+                                            onClick={handleGenerateTutorial}
+                                            disabled={isGeneratingTutorial}
+                                        >
+                                            <Rocket size={18} />
+                                            {isGeneratingTutorial ? 'Compilando conocimiento...' : 'Generar Tutorial Adaptado a mis Proyectos'}
                                         </button>
                                     </div>
                                 )}
@@ -839,53 +986,79 @@ const FichasModule = ({ showToast, addNotification }) => {
                             </div>
                         )}
 
-                        {/* ── Tab: Stack (Herramientas) ── */}
-                        {activeTab === 'tools' && (
+                        {/* ── Tab: Stack & Tools ── */}
+                        {activeTab === 'stack' && (
                             <div className="tab-content">
-                                {selectedFicha.herramientas && selectedFicha.herramientas.length > 0 ? (
-                                    <div className="tools-grid">
-                                        {selectedFicha.herramientas.map((h, i) => (
-                                            <div key={i} className="tool-card">
-                                                <div className="tool-card-header">
-                                                    <span className="tool-name">{h.nombre}</span>
-                                                    <span className="tag-mini">{h.tipo || 'Tool'}</span>
-                                                </div>
-                                                <p className="tool-desc">{h.descripcion}</p>
-                                                <div className="tool-footer">
-                                                    <span className="tool-price">{h.precio || '—'}</span>
-                                                    {h.url_oficial && (
-                                                        <button
-                                                            className="btn-explore"
-                                                            onClick={() => window.electronAPI.config.openUrl(h.url_oficial)}
-                                                        >
-                                                            {h.url_oficial.includes('github.com') ? <><Github size={14} /> Repo</> : <><LinkIcon size={12} /> Sitio</>}
-                                                        </button>
-                                                    )}
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                ) : (
-                                    <div className="empty-state">No se detectaron herramientas específicas.</div>
+                                {selectedFicha.techStack && selectedFicha.techStack.length > 0 && (
+                                    <section className="detail-section" style={{ marginBottom: '30px' }}>
+                                        <h3 className="section-title"><Settings size={14} /> Tecnologías Involucradas</h3>
+                                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
+                                            {selectedFicha.techStack.map((tech, idx) => (
+                                                <span key={idx} style={{ background: 'var(--accent)', padding: '6px 12px', borderRadius: '4px', fontSize: '0.9rem', fontWeight: 'bold' }}>
+                                                    {tech}
+                                                </span>
+                                            ))}
+                                        </div>
+                                    </section>
                                 )}
-                            </div>
-                        )}
 
-                        {/* ── Tab: Guide (Manual) ── */}
-                        {activeTab === 'manual' && selectedFicha.manual_uso && (
-                            <div className="tab-content">
-                                <div className="manual-container">
-                                    <div className="manual-content">
-                                        {selectedFicha.manual_uso.split('\n').map((line, i) => (
-                                            <div key={i} className={line.startsWith('#') ? 'manual-title' : 'manual-line'}>
-                                                {line.startsWith('###') ? <h4>{line.replace(/###/g, '')}</h4> :
-                                                    line.startsWith('##') ? <h3>{line.replace(/##/g, '')}</h3> :
-                                                        line.startsWith('#') ? <h2>{line.replace(/#/g, '')}</h2> :
-                                                            <p>{line}</p>}
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
+                                {selectedFicha.comparisonMatrix && Object.keys(selectedFicha.comparisonMatrix).length > 0 && (
+                                    <section className="detail-section">
+                                        <h3 className="section-title"><Database size={14} /> Matriz de Comparación</h3>
+                                        <div style={{ background: 'var(--background-alt)', borderRadius: '8px', padding: '15px' }}>
+                                            {Object.entries(selectedFicha.comparisonMatrix).map(([key, value], idx) => (
+                                                <div key={idx} style={{ marginBottom: '10px', paddingBottom: '10px', borderBottom: idx < Object.keys(selectedFicha.comparisonMatrix).length - 1 ? '1px solid rgba(255,255,255,0.05)' : 'none' }}>
+                                                    <span style={{ fontWeight: 'bold', color: 'var(--accent-2)', display: 'block', marginBottom: '5px' }}>{key}</span>
+                                                    <span style={{ color: 'var(--text-1)' }}>{value}</span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </section>
+                                )}
+
+                                {selectedFicha.herramientas && selectedFicha.herramientas.length > 0 && (
+                                    <section className="detail-section">
+                                        <h3 className="section-title"><Rocket size={14} /> Herramientas Identificadas</h3>
+                                        <div className="tools-grid">
+                                            {selectedFicha.herramientas.map((h, i) => (
+                                                <div key={i} className="tool-card">
+                                                    <div className="tool-card-header">
+                                                        <span className="tool-name">{h.nombre}</span>
+                                                        <span className="tag-mini">{h.tipo || 'Tool'}</span>
+                                                    </div>
+                                                    <p className="tool-desc">{h.descripcion}</p>
+                                                    <div className="tool-footer">
+                                                        <span className="tool-price">{h.precio || '—'}</span>
+                                                        {h.url_oficial && (
+                                                            <button
+                                                                className="btn-explore"
+                                                                onClick={() => window.electronAPI.config.openUrl(h.url_oficial)}
+                                                            >
+                                                                {h.url_oficial.includes('github.com') ? <><Github size={14} /> Repo</> : <><LinkIcon size={12} /> Sitio</>}
+                                                            </button>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </section>
+                                )}
+
+                                {selectedFicha.manual_uso && (
+                                    <section className="detail-section">
+                                        <h3 className="section-title"><Book size={14} /> Manual / Guía</h3>
+                                        <div className="manual-container" style={{ background: 'var(--background-alt)', padding: '20px', borderRadius: '8px' }}>
+                                            {selectedFicha.manual_uso.split('\n').map((line, i) => (
+                                                <div key={i} className={line.startsWith('#') ? 'manual-title' : 'manual-line'}>
+                                                    {line.startsWith('###') ? <h4 style={{marginTop: '15px', color:'var(--text-1)'}}>{line.replace(/###/g, '')}</h4> :
+                                                        line.startsWith('##') ? <h3 style={{marginTop: '20px', color:'var(--accent)'}}>{line.replace(/##/g, '')}</h3> :
+                                                            line.startsWith('#') ? <h2 style={{marginTop: '25px', color:'var(--accent-2)'}}>{line.replace(/#/g, '')}</h2> :
+                                                                <p style={{color: 'var(--text-2)'}}>{line}</p>}
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </section>
+                                )}
                             </div>
                         )}
                     </div>

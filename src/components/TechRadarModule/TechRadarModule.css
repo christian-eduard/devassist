@@ -1,0 +1,78 @@
+.radar-module {
+    padding: 30px;
+    height: 100%;
+}
+
+.radar-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+    margin-top: 30px;
+}
+
+.radar-quadrant {
+    padding: 24px;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 16px;
+    min-height: 300px;
+}
+
+.radar-quadrant.adopt { border-top: 4px solid #22c55e; }
+.radar-quadrant.trial { border-top: 4px solid #3b82f6; }
+.radar-quadrant.assess { border-top: 4px solid #a855f7; }
+.radar-quadrant.hold { border-top: 4px solid #ef4444; }
+
+.quadrant-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 8px;
+}
+
+.quadrant-header h3 {
+    margin: 0;
+    font-size: 1.25rem;
+    font-weight: 700;
+}
+
+.quadrant-desc {
+    color: rgba(255, 255, 255, 0.5);
+    font-size: 0.85rem;
+    margin-bottom: 20px;
+}
+
+.tech-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+}
+
+.tech-card {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    padding: 10px 16px;
+    border-radius: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.tech-name {
+    font-weight: 600;
+    font-size: 0.95rem;
+}
+
+.tech-meta {
+    font-size: 0.75rem;
+    color: rgba(255, 255, 255, 0.4);
+}
+
+.empty-quadrant {
+    width: 100%;
+    color: rgba(255, 255, 255, 0.2);
+    text-align: center;
+    padding: 40px;
+    font-style: italic;
+    font-size: 0.9rem;
+}

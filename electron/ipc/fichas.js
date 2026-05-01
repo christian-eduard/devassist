@@ -6,8 +6,41 @@ const { exec } = require('child_process');
 const util = require('util');
 const execAsync = util.promisify(exec);
 
-const db = require('../db');
 const { loadConfig } = require('./config');
+const { getBestFreeModel } = require('./ai_pool');
+const ai = require('../services/ai_rotator');
+
+let dbInstance = null; // Almacén dinámico para la instancia de DB
+
+
+/**
+ * Genera un vector (embedding) para una ficha de conocimiento.
+ * Resume el título, transcripción, TL;DR y Tech Stack.
+ */
+async function generateFichaEmbedding(ficha) {
+    try {
+        const metadata = ficha.data || ficha.metadata || {};
+        const stack = (metadata.tech_stack || []).join(', ');
+        const keyPoints = (metadata.key_points || []).join('. ');
+        
+        const contextText = `
+            Título: ${ficha.title || ficha.titulo}
+            Categoría: ${metadata.categoria || ''} (${metadata.content_type || ''})
+            Stack: ${stack}
+            Conceptos Clave: ${keyPoints}
+            Resumen: ${metadata.tl_dr || metadata.resumen || ''}
+            Contenido: ${ficha.transcripcion || ''}
+            Investigación: ${ficha.investigacion_profunda || ''}
+        `.trim();
+
+        logger.info(`[Fichas:Embedding] Generando vector para: ${ficha.title || ficha.id}`);
+        const vector = await ai.generateEmbedding(contextText);
+        return vector;
+    } catch (err) {
+        logger.error(`[Fichas:Embedding] Error: ${err.message}`);
+        return null;
+    }
+}
 
 const extractJSON = (text) => {
     if (!text) return null;
@@ -51,13 +84,12 @@ const extractJSON = (text) => {
 };
 
 function loadFichas() {
-    return db.getFichas();
+    return dbInstance ? dbInstance.getFichas() : [];
 }
 
 function saveFichas(fichas) {
-    // Nota: El frontend suele mandar el array completo. En SQLite es mejor guardar la ficha individual que cambia.
-    // Sin embargo, para mantener compatibilidad sin romper el frontend ahora mismo, iteramos.
-    fichas.forEach(f => db.saveFicha(f));
+    if (!dbInstance) return;
+    fichas.forEach(f => dbInstance.saveFicha(f));
 }
 
 // ── Proyectos de Chris (para matching) ──────────────────────
@@ -265,107 +297,39 @@ async function callOpenAI(apiKey, prompt, model = 'gpt-4o-mini') {
     });
 }
 
+/**
+ * Motor Inteligente de DevAssist (Fase 17 - Unificado)
+ * Delega en AIRotator para resiliencia, Free-Ride y fallbacks.
+ */
 async function callAI(taskId, config, prompt, audioBase64 = null, onProgress = null) {
-    const assignments = config.aiAssignments?.[taskId] || { provider: 'gemini', model: 'gemini-2.5-flash' };
-    const initialProvider = assignments.provider;
+    const assignments = config.aiAssignments?.[taskId] || { provider: 'gemini', model: 'gemini-1.5-flash' };
     
-    // ── Detección DINÁMICA de proveedores disponibles ──
-    const pool = [initialProvider];
-    const available = [];
-    if (config.apiKeys?.groq) available.push('groq');
-    if (config.apiKeys?.openrouter) available.push('openrouter');
-    if (config.apiKeys?.openai) available.push('openai');
-    if (config.gemini?.apiKey) available.push('gemini');
-    
-    // Lista de proveedores en orden: Asignado -> Groq -> OpenRouter -> OpenAI -> Gemini
-    const fallbacks = [...new Set([...pool, ...available])];
-
-    let lastError = null;
-
-    for (const provider of fallbacks) {
-        try {
-            logger.info(`[AI:Task] Intentando ${taskId} con ${provider}...`);
-            if (onProgress && provider !== initialProvider) {
-                onProgress(`⏳ El proveedor inicial falló. Cambiando a ${provider.toUpperCase()} para no detener el proceso...`);
-            }
-
-            // --- CASO GEMINI ---
-            if (provider === 'gemini') {
-                const apiKey = config.gemini?.apiKey;
-                if (!apiKey) throw new Error('API Key de Gemini no configurada');
-                // Usamos el modelo asignado si el proveedor es Gemini, o el fallback 2.5-flash
-                const targetModel = (provider === initialProvider) ? (assignments.model || 'gemini-2.5-flash') : 'gemini-2.5-flash';
-                return await callGemini(apiKey, prompt, audioBase64, 'audio/mp3', targetModel);
-            } 
-            
-            // --- CASO GROQ (Inmortal si es audio) ---
-            if (provider === 'groq') {
-                const apiKey = config.apiKeys?.groq;
-                if (!apiKey) throw new Error('API Key de Groq no configurada');
-
-                if (taskId === 'vault-transcribe' && audioBase64) {
-                    const statusMsg = "🎙️ [FALLBACK] Usando Whisper (Groq) + Llama (Cerebro)";
-                    logger.info(statusMsg);
-                    if (onProgress) onProgress(statusMsg);
-                    
+    try {
+        // --- CASO ESPECIAL: TRANSCRIPCIÓN DE AUDIO ---
+        if (taskId === 'vault-transcribe' && audioBase64) {
+            const provider = assignments.provider;
+            if (provider === 'groq' || provider === 'openai') {
+                const apiKey = config.apiKeys?.[provider];
+                if (apiKey) {
+                    if (onProgress) onProgress(`🎙️ Usando Whisper (${provider.toUpperCase()}) para transcripción...`);
                     const audioBuffer = Buffer.from(audioBase64, 'base64');
-                    const rawTranscription = await callGroqWhisper(apiKey, audioBuffer);
-                    const elegantPrompt = `${prompt}\n\nAQUÍ TIENES EL TEXTO BRUTO DEL AUDIO:\n${rawTranscription}`;
-                    return await callGroq(apiKey, elegantPrompt);
+                    return provider === 'groq' ? await callGroqWhisper(apiKey, audioBuffer) : await callOpenAI(apiKey, `Transcribe: ${prompt}`);
                 }
-
-                return await callGroq(apiKey, prompt);
-            } 
-            
-            // --- CASO OPENROUTER (Inmortal si es audio, vía Whisper de Groq si está disponible) ---
-            if (provider === 'openrouter') {
-                const apiKey = config.apiKeys?.openrouter;
-                if (!apiKey) throw new Error('API Key de OpenRouter no configurada');
-
-                if (taskId === 'vault-transcribe' && audioBase64) {
-                    // OpenRouter no tiene audio directo fácil, si Groq está configurado, usamos su Whisper
-                    if (config.apiKeys?.groq) {
-                        if (onProgress) onProgress("🎙️ Usando Whisper (Groq) + DeepSeek (OpenRouter)...");
-                        const audioBuffer = Buffer.from(audioBase64, 'base64');
-                        const rawTranscription = await callGroqWhisper(config.apiKeys.groq, audioBuffer);
-                        const elegantPrompt = `${prompt}\n\nAQUÍ TIENES EL TEXTO BRUTO DEL AUDIO:\n${rawTranscription}`;
-                        return await callOpenRouter(apiKey, elegantPrompt);
-                    }
-                    throw new Error('OpenRouter necesita Groq configurado para transcripción de audio.');
-                }
-
-                return await callOpenRouter(apiKey, prompt);
             }
-
-            // --- CASO OPENAI (Inmortal si es audio) ---
-            if (provider === 'openai') {
-                const apiKey = config.apiKeys?.openai;
-                if (!apiKey) throw new Error('API Key de OpenAI no configurada');
-
-                if (taskId === 'vault-transcribe' && audioBase64) {
-                    // Si falla Gemini, OpenAI también tiene Whisper, pero usemos Groq Whisper por velocidad si existe
-                    if (onProgress) onProgress("🎙️ Usando Protocolo Inmortal (OpenRoute/OpenAI/Groq)...");
-                    let rawTranscription = "";
-                    if (config.apiKeys?.groq) {
-                         const audioBuffer = Buffer.from(audioBase64, 'base64');
-                         rawTranscription = await callGroqWhisper(config.apiKeys.groq, audioBuffer);
-                    } else {
-                         throw new Error('Necesitas Groq para transcripción de emergencia.');
-                    }
-                    const elegantPrompt = `${prompt}\n\nAQUÍ TIENES EL TEXTO BRUTO DEL AUDIO:\n${rawTranscription}`;
-                    return await callOpenAI(apiKey, elegantPrompt);
-                }
-
-                return await callOpenAI(apiKey, prompt);
-            }
-
-        } catch (err) {
-            lastError = err;
-            logger.warn(`[AI:Task] Falló ${provider}: ${err.message}`);
         }
-    }
 
-    throw new Error(`Todos los proveedores de IA fallaron. Último error: ${lastError?.message}`);
+        // --- CASO GENERAL: GENERACIÓN DE TEXTO CON ROTACIÓN RESILIENTE ---
+        return await ai.complete(prompt, {
+            taskId,
+            model: assignments.model,
+            providers: [assignments.provider, 'gemini', 'openrouter', 'groq', 'openai'],
+            audioBase64
+        });
+
+    } catch (err) {
+        logger.error(`[AI:Task] Error en ${taskId}: ${err.message}`);
+        throw err;
+    }
 }
 
 // ── Búsqueda web vía DuckDuckGo ──────────────────────────────
@@ -421,14 +385,17 @@ function matchProyectos(transcripcion, herramientas, proyectosReales) {
     return matches.sort((a, b) => b.relevancia - a.relevancia).slice(0, 3);
 }
 
-// ── Notificaciones de progreso vía OpenClaw (WhatsApp/Telegram) ──
-async function notifyChannel(message, channel = 'whatsapp') {
+// ── Notificaciones de progreso (SOLO Telegram si está activado) ──
+async function notifyChannel(message, channel = 'local') {
+    if (channel === 'whatsapp' || channel === 'external') return; // Bloqueo total
     try {
-        const target = channel === 'telegram' ? 'tg:6541399577' : '34644984173';
-        await execAsync(
-            `npx openclaw message send --channel ${channel} --target "${target}" --message "${message.replace(/"/g, '\\"')}"`,
-            { timeout: 10000 }
-        );
+        if (channel === 'telegram') {
+            const target = 'tg:6541399577';
+            await execAsync(
+                `npx openclaw message send --channel ${channel} --target "${target}" --message "${message.replace(/"/g, '\\"')}"`,
+                { timeout: 10000 }
+            );
+        }
     } catch (e) {
         logger.warn(`[Notify] No se pudo notificar por ${channel}: ${e.message}`);
     }
@@ -481,6 +448,7 @@ async function processTikTokUrl(url, config, options = {}, _event = null) {
         if (_event && _event.sender) _event.sender.send('fichas:process-progress', msg);
     };
 
+    const videoId = Date.now(); // Movido al inicio para sincronización V15
     const safeUrl = (url || '').trim();
     if (!safeUrl.startsWith('http')) {
         throw new Error('La URL proporcionada no es válida. Debe empezar por http/https.');
@@ -515,7 +483,7 @@ Título: "${existing.title}"`;
         try {
             const shellUrl = safeUrl.replace(/"/g, '\\"');
             const { stdout: meta } = await execAsync(
-                `yt-dlp --impersonate chrome --no-check-certificates --no-playlist --print "%(title)s|||%(uploader)s" "${shellUrl}"`,
+                `yt-dlp --no-cache-dir --rm-cache-dir --impersonate chrome --no-check-certificates --no-playlist --print "%(title)s|||%(uploader)s" "${shellUrl}"`,
                 { timeout: 40000 }
             );
             const parts = meta.trim().split('|||');
@@ -527,17 +495,25 @@ Título: "${existing.title}"`;
             logger.warn(`[TikTok] Metadatos fallidos (usando genéricos): ${e.message}`); 
         }
 
-        const videoId = Date.now();
         const videoPath = path.join(videosDir, `${videoId}.mp4`);
-        const shellUrl = safeUrl.replace(/"/g, '\\"');
+        const shellUrlDownload = safeUrl.replace(/"/g, '\\"');
         
         logger.info(`[TikTok] Descargando video en: ${videoPath}`);
+        // RESTAURACIÓN V26: Formato H.264 restringido para máxima compatibilidad visual en Electron
+        // Evitamos VP9/AV1 que causan pantalla negra en algunas versiones de Mac
         await execAsync(
-            `yt-dlp --impersonate chrome --no-check-certificates -f "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]" -o "${videoPath}" --no-playlist --max-filesize 100m "${shellUrl}"`,
+            `yt-dlp --no-cache-dir --impersonate chrome --no-check-certificates -f "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]" -o "${videoPath}" --no-playlist --max-filesize 100m "${shellUrlDownload}"`,
             { timeout: 150000 }
         );
 
-        const audioPath = path.join(tmpDir, 'audio.mp3');
+        if (!fs.existsSync(videoPath)) {
+            logger.error(`[TikTok:ERROR] El video no se guardó en: ${videoPath}`);
+            // Fallback: intentar descargar el mejor formato sin merge específico
+            await execAsync(`yt-dlp --no-cache-dir --impersonate chrome -f "best" -o "${videoPath}" "${shellUrlDownload}"`, { timeout: 60000 });
+        }
+
+        // --- AISLAMIENTO V14: Rutas Únicas de Audio ---
+        const audioPath = path.join(tmpDir, `audio_${videoId}.mp3`);
         logger.info(`[TikTok] Extrayendo audio en: ${audioPath}`);
         try {
             await execAsync(`ffmpeg -i "${videoPath}" -vn -ar 16000 -ac 1 -ab 64k "${audioPath}" -y`, { timeout: 60000 });
@@ -550,19 +526,36 @@ Título: "${existing.title}"`;
         const audioBuffer = fs.readFileSync(audioPath);
         logger.info(`[TikTok] Audio listo para transcribir. Tamaño: ${audioBuffer.length} bytes.`);
 
-        // ── ETAPA 2: Transcripción (Sequential) ──
-        sendProgress("Etapa 2/4: Transcribiendo contenido...");
-        const transcripcion = await callAI('vault-transcribe', config, `Transcribe: ${url}`, audioBuffer.toString('base64'), sendProgress);
-        if (!transcripcion) throw new Error('Transcripción vacía');
+        // ── ETAPA 2: Transcripción de Pago (V20: Protocolo Inmortal / Golden Reset) ──
+        sendProgress("Etapa 2/4: Transcribiendo contenido (Pro Motor)...");
+        const base64Audio = audioBuffer.toString('base64');
+        
+        // Usamos el prompt exacto del backup para máxima fidelidad
+        const transcripcion = await ai.complete(`Transcribe: ${url}`, { taskId: 'vault-transcribe', audio: base64Audio });
+        if (!transcripcion) throw new Error('Transcripción fallida (Motor de Ingesta)');
 
         sendProgress("Etapa 3/4: Generación de Ficha Maestra...");
-        const fusedRaw = await callAI('vault-analyze', config, `Eres un motor de extracción técnica. Chris necesita la ficha de conocimiento para esta transcripción.
-        TRANSCRIPCIÓN: ${transcripcion}
+        // Restauración V20: Usar el prompt de extracción técnica que Chris ya tenía validado
+        const fusedRaw = await ai.complete(`Eres un motor de extracción técnica ENTERPRISE. Chris necesita la ficha de conocimiento para esta transcripción.
+        
+        TRANSCRIPCIÓN REAL: ${transcripcion}
         
         REQUISITOS:
         1. Devuelve ÚNICAMENTE un objeto JSON válido.
         2. No incluyas explicaciones, saludos ni comentarios.
-        3. Formato: { "titulo": "...", "resumen": "...", "categoria": "...", "prioridad": 1-5, "herramientas": [{"nombre": "...", "descripcion": "..."}], "conceptos_clave": [], "manual_uso": "...", "puntos_exploracion": [{"tema": "...", "pregunta": "..."}] }`);
+        3. Formato: { 
+          "titulo": "...", 
+          "tl_dr": "...", 
+          "key_points": [], 
+          "categoria": "...", 
+          "urgency": 1-5,
+          "obsolescence_score": 1-10,
+          "confidence_score": 0-1,
+          "herramientas": [{"nombre": "...", "descripcion": "..."}], 
+          "tech_stack": [],
+          "manual_uso": "...", 
+          "puntos_exploracion": [{"tema": "...", "pregunta": "..."}] 
+        }`, { taskId: 'vault-analyze' });
         
         const analisis = extractJSON(fusedRaw);
         if (!analisis) throw new Error('No se pudo extraer una ficha válida de la IA');
@@ -589,8 +582,8 @@ Título: "${existing.title}"`;
                     const { loadProjects } = require('./projects');
                     const proyectos = await loadProjects();
                     if (!proyectos.length) return [];
-                    const res = await callAI('vault-matcher', config, `Analiza el video: ${transcripcion}. Proyectos disponibles de Chris: ${JSON.stringify(proyectos)}. 
-                    Mapea el video a los proyectos relevantes. Devuelve SOLO JSON: { "matches": [{ "proyecto": "...", "relevancia": 0-100, "sugerencia": "..." }] }`);
+                    const res = await ai.complete(`Analiza el video: ${transcripcion}. Proyectos disponibles de Chris: ${JSON.stringify(proyectos)}. 
+                    Mapea el video a los proyectos relevantes. Devuelve SOLO JSON: { "matches": [{ "proyecto": "...", "relevancia": 0-100, "sugerencia": "..." }] }`, { taskId: 'vault-matcher' });
                     return extractJSON(res)?.matches || []; 
                 } catch (err) {
                     logger.warn('[Rama B] Falló Project Match:', err.message);
@@ -598,7 +591,7 @@ Título: "${existing.title}"`;
                 }
             })(),
             // Rama C: Deep Research Summary
-            callAI('vault-research', config, `Resumen técnico profundo de: ${transcripcion}`).catch(e => {
+            ai.complete(`Resumen técnico profundo de: ${transcripcion}`, { taskId: 'vault-research' }).catch(e => {
                 logger.warn('[Rama C] Falló Deep Research:', e.message);
                 return 'No se pudo generar investigación profunda (Error de IA o Cuota).';
             })
@@ -627,11 +620,23 @@ Título: "${existing.title}"`;
             }
         };
 
-        // NOTA: Auto-Vectorización RAG temporalmente encolada (evita ipcMain crash).
-        logger.info('[RAG] Ficha lista para vectorización asincrónica (pendiente UI).');
+        // --- LIMPIEZA V14: Borrar audio temporal ---
+        try {
+            if (fs.existsSync(audioPath)) fs.unlinkSync(audioPath);
+        } catch (e) {
+            logger.warn(`[TikTok] No se pudo limpiar audio temporal: ${e.message}`);
+        }
+
+        // Auto-Vectorización RAG
+        sendProgress("Etapa final: Sincronizando con motor semántico...");
+        const embedding = await generateFichaEmbedding(fichaFinal);
+        if (embedding) {
+            fichaFinal.embedding = embedding;
+            logger.info(`[RAG] Embedding generado con éxito para ficha ${fichaFinal.id}`);
+        }
 
 
-        await db.saveFicha(fichaFinal);
+        await dbInstance.saveFicha(fichaFinal);
         logger.info('[TikTok] Ficha optimizada guardada con éxito.');
         return fichaFinal;
     } catch (err) {
@@ -704,12 +709,18 @@ TRANSCRIPCIÓN: ${transcripcion}`
 }
 
 
-function registerFichasHandlers(ipcMain, dataDir, dialog) {
+function registerFichasHandlers(ipcMain, dataDir, dialog, db) {
+    dbInstance = db; // Inyectamos la instancia global para el pipeline
     ipcMain.handle('fichas:load', async () => {
         return await db.getFichas();
     });
 
     ipcMain.handle('fichas:save', async (_event, ficha) => {
+        // Al guardar, regeneramos el embedding si el contenido es relevante (e.g. editado en UI)
+        if (ficha.transcripcion || ficha.title || ficha.investigacion_profunda) {
+            const vector = await generateFichaEmbedding(ficha);
+            if (vector) ficha.embedding = vector;
+        }
         await db.saveFicha(ficha);
         return { ok: true };
     });
@@ -797,56 +808,9 @@ function registerFichasHandlers(ipcMain, dataDir, dialog) {
         }
     });
 
+
     ipcMain.handle('fichas:generate-deep', async (_event, id) => {
-        try {
-            // Cargamos desde DB (sin parámetros — SQLite no necesita dataDir)
-            const fichas = loadFichas();
-            const ficha = fichas.find(f => f.id === id);
-            if (!ficha) throw new Error(`Ficha no encontrada: ${id}`);
-
-            const { loadConfig } = require('./config');
-            const config = await loadConfig();
-
-            const transcripcion = ficha.transcripcion || '';
-            const herramientasDesc = (ficha.herramientas || []).map(h => `${h.nombre}: ${h.descripcion}`).join('\n');
-
-            // Proyectos reales desde DB (sin parámetros)
-            const { loadProjects } = require('./projects');
-            const proyectos = loadProjects();
-            const projectContext = proyectos.length > 0
-                ? proyectos.map(p => p.name).join(', ')
-                : 'DevAssist';
-
-            const deepPrompt = `
-Eres el CTO experto en tecnología y arquitectura de software de elite. Chris confía en ti para liderar el pensamiento técnico de sus proyectos.
-Realiza el análisis profundo (Deep Search) MÁS EXTREMO posible en base a esta transcripción y herramientas del video:
-
-Herramientas mencionadas: ${herramientasDesc}
-Transcripción completa: ${transcripcion}
-
-TU MISIÓN:
-1. ARQUITECTURA: Explica cómo funciona esto por debajo. No me des una definición, dame un diagrama mental de componentes.
-2. IMPLEMENTACIÓN: Dame el stack exacto y los comandos o fragmentos de código (Node.js/Python/Go) para poner esto en marcha HOY MISMO.
-3. VENTAJA COMPETITIVA: ¿Por qué esto es mejor que lo que ya existe? Sé crítico.
-4. LIMITACIONES: ¿Dónde va a fallar esto en producción?
-5. INTEGRACIÓN: Sugiere cómo esto puede potenciar los proyectos actuales de Chris (${projectContext}).
-
-RESPUESTA: Usa un tono profesional, directo y ultra-técnico. Menos palabras, más valor.
-            `;
-
-            logger.info('[fichas:generate-deep] Usando Sistema Multi-IA para análisis profundo...');
-            const investigacionProfunda = await callAI('vault-research', config, deepPrompt);
-
-            // ✅ CORRECTO: guardar en SQLite con db.saveFicha (no saveFichas de archivos)
-            const fichaActualizada = { ...ficha, investigacion_profunda: investigacionProfunda };
-            db.saveFicha(fichaActualizada);
-            logger.info(`[fichas:generate-deep] Investigación guardada en DB para ficha ${id}`);
-
-            return { ok: true, investigacion_profunda: investigacionProfunda };
-        } catch (err) {
-            logger.error('[fichas:generate-deep] Error:', err.message);
-            return { ok: false, error: err.message };
-        }
+        return await generateDeepResearch(id);
     });
 
     ipcMain.handle('fichas:research-point', async (_event, { tema, pregunta }) => {
@@ -875,7 +839,7 @@ Proporciona un informe técnico de alta gama. Chris no quiere generalidades.
 - Responde siempre en Español, Señor Chris.
 Usa MARKDOWN denso y limpio.`;
 
-            const result = await callIntelligentAI(config, prompt);
+            const result = await ai.complete(prompt, { taskId: 'vault-research' });
             return { ok: true, result };
         } catch (err) {
             logger.error('[fichas:research-point] Error:', err.message);
@@ -923,5 +887,97 @@ Usa MARKDOWN denso y limpio.`;
     });
 };
 
+async function generateDeepResearch(id) {
+    try {
+        const fichas = await loadFichas();
+        const ficha = fichas.find(f => f.id === id);
+        if (!ficha) throw new Error(`Ficha no encontrada: ${id}`);
+
+        const { loadConfig } = require('./config');
+        const config = await loadConfig();
+
+        const transcripcion = ficha.transcripcion || '';
+        const herramientasDesc = (ficha.herramientas || []).map(h => `${h.nombre}: ${h.descripcion}`).join('\n');
+
+        const { loadProjects } = require('./projects');
+        const logProjects = await loadProjects();
+        const projectContext = logProjects.length > 0
+            ? logProjects.map(p => p.name).join(', ')
+            : 'DevAssist';
+
+        const deepPrompt = `
+Eres el CTO experto en tecnología y arquitectura de software de elite. Chris confía en ti para liderar el pensamiento técnico de sus proyectos.
+Realiza el análisis profundo (Deep Search) MÁS EXTREMO posible en base a esta transcripción y herramientas del video:
+
+Herramientas mencionadas: ${herramientasDesc}
+Transcripción completa: ${transcripcion}
+
+TU MISIÓN:
+1. ARQUITECTURA: Explica cómo funciona esto por debajo. No me des una definición, dame un diagrama mental de componentes.
+2. IMPLEMENTACIÓN: Dame el stack exacto y los comandos o fragmentos de código (Node.js/Python/Go) para poner esto en marcha HOY MISMO.
+3. VENTAJA COMPETITIVA: ¿Por qué esto es mejor que lo que ya existe? Sé crítico.
+4. LIMITACIONES: ¿Dónde va a fallar esto en producción?
+5. INTEGRACIÓN: Sugiere cómo esto puede potenciar los proyectos actuales de Chris (${projectContext}).
+
+RESPUESTA: Usa un tono profesional, directo y ultra-técnico. Menos palabras, más valor.
+        `;
+
+        logger.info('[fichas:generate-deep] Usando Sistema Multi-IA para análisis profundo...');
+        const investigacionProfunda = await ai.complete(deepPrompt, { taskId: 'vault-research' });
+
+        let divergencesArray = ficha.divergences || [];
+        let modelResponsesObj = ficha.modelResponses || {};
+        modelResponsesObj['vault-research-primary'] = investigacionProfunda;
+
+        if (ficha.confidenceScore < 0.8) {
+            logger.info(`[fichas:generate-deep] Confianza baja detectada (${(ficha.confidenceScore * 100).toFixed(0)}%). Iniciando validación secundaria...`);
+            const secondaryResearch = await ai.complete(deepPrompt, { taskId: 'vault-explore' });
+            modelResponsesObj['vault-explore-secondary'] = secondaryResearch;
+
+            const divergencePrompt = `
+Eres un Validador y Auditor Estricto.
+Analiza la Respueta Primaria y la Respuesta Secundaria de dos IAs técnicas.
+Extrae únicamente las diferencias críticas, discrepancias o sugerencias radicalmente opuestas entre ambas.
+Tu respuesta debe ser corta, contundente y marcar dónde hay que desconfiar.
+
+Respuesta Primaria:
+${investigacionProfunda}
+
+Respuesta Secundaria:
+${secondaryResearch}
+            `;
+            const divergenceAnalysis = await ai.complete(divergencePrompt, { taskId: 'vault-matcher' });
+            divergencesArray.push({
+                date: new Date().toISOString(),
+                models: ['vault-research', 'vault-explore'],
+                analysis: divergenceAnalysis
+            });
+            logger.info('[fichas:generate-deep] Análisis de discrepancia completado y registrado.');
+        }
+
+        const fichaActualizada = { 
+            ...ficha, 
+            investigacion_profunda: investigacionProfunda, 
+            researchStatus: 'completed',
+            modelResponses: modelResponsesObj,
+            divergences: divergencesArray
+        };
+
+        // Regenerar embedding con la nueva investigación profunda
+        logger.info('[fichas:generate-deep] Actualizando embedding con investigación profunda...');
+        const deepVector = await generateFichaEmbedding(fichaActualizada);
+        if (deepVector) fichaActualizada.embedding = deepVector;
+
+        await dbInstance.saveFicha(fichaActualizada);
+        logger.info(`[fichas:generate-deep] Investigación y embedding guardados para ficha ${id}`);
+
+        return { ok: true, investigacion_profunda: investigacionProfunda };
+    } catch (err) {
+        logger.error('[fichas:generate-deep] Error:', err.message);
+        return { ok: false, error: err.message };
+    }
+}
+
 module.exports = registerFichasHandlers;
 module.exports.processTikTokUrl = processTikTokUrl;
+module.exports.generateDeepResearch = generateDeepResearch;

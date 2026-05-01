@@ -1,0 +1,22 @@
+-- Migración FASE A: Foundation+
+-- Enriquecimiento del Schema de Fichas (Knowledge Vault)
+
+ALTER TABLE fichas ADD COLUMN IF NOT EXISTS tl_dr TEXT;
+ALTER TABLE fichas ADD COLUMN IF NOT EXISTS key_points JSONB DEFAULT '[]';
+ALTER TABLE fichas ADD COLUMN IF NOT EXISTS verbatim_quotes JSONB DEFAULT '[]';
+ALTER TABLE fichas ADD COLUMN IF NOT EXISTS implementation_steps JSONB DEFAULT '[]';
+ALTER TABLE fichas ADD COLUMN IF NOT EXISTS comparison_matrix JSONB DEFAULT '{}';
+ALTER TABLE fichas ADD COLUMN IF NOT EXISTS obsolescence_score INTEGER DEFAULT 5;
+ALTER TABLE fichas ADD COLUMN IF NOT EXISTS confidence_score FLOAT DEFAULT 0.0;
+ALTER TABLE fichas ADD COLUMN IF NOT EXISTS research_status VARCHAR(20) DEFAULT 'pending';
+ALTER TABLE fichas ADD COLUMN IF NOT EXISTS next_research_at TIMESTAMPTZ;
+ALTER TABLE fichas ADD COLUMN IF NOT EXISTS research_log JSONB DEFAULT '[]';
+ALTER TABLE fichas ADD COLUMN IF NOT EXISTS urgency INTEGER DEFAULT 3;
+ALTER TABLE fichas ADD COLUMN IF NOT EXISTS tech_stack JSONB DEFAULT '[]';
+ALTER TABLE fichas ADD COLUMN IF NOT EXISTS content_type VARCHAR(50) DEFAULT 'demo';
+ALTER TABLE fichas ADD COLUMN IF NOT EXISTS gdoc_id TEXT;
+ALTER TABLE fichas ADD COLUMN IF NOT EXISTS collaborators JSONB DEFAULT '[]';
+
+-- Añadidas para la Fase C (Multi-model Engine) de antemano
+ALTER TABLE fichas ADD COLUMN IF NOT EXISTS model_responses JSONB DEFAULT '{}';
+ALTER TABLE fichas ADD COLUMN IF NOT EXISTS divergences JSONB DEFAULT '[]';

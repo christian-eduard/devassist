@@ -9,7 +9,9 @@ import {
     Cpu,
     Bell,
     Brain,
-    Users2
+    Users2,
+    Target,
+    Sparkles
 } from 'lucide-react';
 import './Sidebar.css';
 
@@ -20,7 +22,9 @@ const Sidebar = ({
     onToggleTheme,
     systemStatus,
     notificationCount,
-    onToggleNC
+    onToggleNC,
+    tessPinned,
+    onToggleTess
 }) => {
     const items = [
         { id: 'projects', label: 'Proyectos', icon: <Zap size={18} /> },
@@ -28,6 +32,8 @@ const Sidebar = ({
         { id: 'agents', label: 'Agentes', icon: <Users2 size={18} /> },
         { id: 'notes', label: 'Notas', icon: <FileText size={18} /> },
         { id: 'aihub', label: 'AI Hub', icon: <Bot size={18} /> },
+        { id: 'radar', label: 'Tech Radar', icon: <Target size={18} /> },
+        { id: 'skills', label: 'Skills', icon: <Sparkles size={18} /> },
         { id: 'logs', label: 'Logs', icon: <FileText size={18} /> },
         { id: 'settings', label: 'Ajustes', icon: <Settings size={18} /> },
     ];
@@ -61,6 +67,9 @@ const Sidebar = ({
 
 
             <div className="sidebar-footer">
+                <button className="tess-pin-mini fixed" onClick={onToggleTess} title="Hablar con TESS">
+                    <Bot size={18} />
+                </button>
                 <button className="theme-toggle" onClick={onToggleTheme} title="Cambiar tema">
                     {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
                 </button>

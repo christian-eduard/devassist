@@ -134,6 +134,29 @@ module.exports = function registerConfigHandlers(ipcMain, dataDir, shell, dialog
             return { ok: false, error: e.message };
         }
     });
+
+    ipcMain.handle('config:load-openclaw', async () => {
+        const ocPath = path.join(os.homedir(), '.openclaw', 'openclaw.json');
+        try {
+            if (!fs.existsSync(ocPath)) return null;
+            const content = fs.readFileSync(ocPath, 'utf8');
+            return JSON.parse(content);
+        } catch (err) {
+            logger.error('[config:load-openclaw] Error:', err.message);
+            return null;
+        }
+    });
+
+    ipcMain.handle('config:save-openclaw', async (_event, ocConfig) => {
+        const ocPath = path.join(os.homedir(), '.openclaw', 'openclaw.json');
+        try {
+            fs.writeFileSync(ocPath, JSON.stringify(ocConfig, null, 2));
+            return { ok: true };
+        } catch (err) {
+            logger.error('[config:save-openclaw] Error:', err.message);
+            return { ok: false, error: err.message };
+        }
+    });
 };
 
 module.exports.loadConfig = loadConfig;

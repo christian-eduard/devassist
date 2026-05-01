@@ -1,4 +1,5 @@
 const { GoogleGenerativeAI } = require('@google/generative-ai');
+const ai = require('../services/ai_rotator');
 const { loadConfig, saveConfig } = require('./config');
 
 module.exports = function registerAIHandlers(ipcMain) {
@@ -79,15 +80,15 @@ module.exports = function registerAIHandlers(ipcMain) {
                     'X-Title': 'DevAssist'
                 },
                 body: JSON.stringify({
-                    model: 'google/gemini-flash-1.5',
+                    model: 'google/gemini-2.0-flash-001',
                     messages: [{ role: 'user', content: 'Say OK' }],
                     max_tokens: 10
                 })
             });
 
             const data = await response.json();
-            if (data.error) return { ok: false, error: data.error.message };
-            return { ok: true, response: data.choices[0].message.content.trim() };
+            if (data.error) return { ok: false, error: data.error.message || data.error };
+            return { ok: true, response: data.choices?.[0]?.message?.content?.trim() || 'Respuesta vacía' };
         } catch (err) {
             return { ok: false, error: err.message };
         }
@@ -126,26 +127,30 @@ module.exports = function registerAIHandlers(ipcMain) {
             const apiKey = config.apiKeys?.huggingface;
             if (!apiKey) return { ok: false, error: 'Token de Hugging Face no configurado.' };
 
-            const response = await fetch('https://router.huggingface.co/hf-inference/models/meta-llama/Llama-3.2-3B-Instruct', {
+            // Nueva Arquitectura HF Router (OpenAI Compatible)
+            const response = await fetch('https://router.huggingface.co/v1/chat/completions', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                     'Authorization': `Bearer ${apiKey}`
                 },
                 body: JSON.stringify({
-                    inputs: 'Say OK',
-                    parameters: { max_new_tokens: 10 }
+                    model: 'meta-llama/Llama-3.2-1B-Instruct',
+                    messages: [{ role: 'user', content: 'Say OK' }],
+                    max_tokens: 10
                 })
             });
 
             if (!response.ok) {
-                const errData = await response.json();
-                return { ok: false, error: errData.error || 'Error en la petición a HF' };
+                const text = await response.text();
+                return { ok: false, error: `Error HF (HTTP ${response.status}): ${text.substring(0, 100)}` };
             }
 
-            return { ok: true, response: 'Conexión exitosa' };
+            const data = await response.json();
+            const content = data.choices?.[0]?.message?.content?.trim();
+            return { ok: true, response: content || 'OK' };
         } catch (err) {
-            return { ok: false, error: err.message };
+            return { ok: false, error: `Fallo de red: ${err.message}` };
         }
     });
 
@@ -205,26 +210,20 @@ module.exports = function registerAIHandlers(ipcMain) {
 
     ipcMain.handle('ai:generate-embedding', async (_event, text) => {
         try {
-            const config = await loadConfig();
-            const apiKey = config.apiKeys?.openai;
-            if (!apiKey) throw new Error('API Key de OpenAI no configurada para Embeddings');
-
-            const response = await fetch('https://api.openai.com/v1/embeddings', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${apiKey}`
-                },
-                body: JSON.stringify({
-                    model: 'text-embedding-3-small',
-                    input: text
-                })
-            });
-
-            const data = await response.json();
-            if (data.error) throw new Error(data.error.message);
+            const vector = await ai.generateEmbedding(text);
+            if (!vector) throw new Error('Fallo al generar embedding con Gemini');
             
-            return { ok: true, embedding: data.data[0].embedding };
+            return { ok: true, embedding: vector };
+        } catch (err) {
+            return { ok: false, error: err.message };
+        }
+    });
+
+    ipcMain.handle('ai:get-usage-stats', async () => {
+        try {
+            const nexus = require('../db_nexus');
+            const stats = await nexus.getAIUsageStats();
+            return { ok: true, ...stats };
         } catch (err) {
             return { ok: false, error: err.message };
         }

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useEffect, useRef, useCallback } from 'react';
 import { Bot, X, Send, Trash2, ArrowUp, Loader2 } from 'lucide-react';
 import './TessChatWidget.css';
 
@@ -37,13 +37,12 @@ function TypingIndicator() {
     );
 }
 
-export default function TessChatWidget() {
-    const [open, setOpen] = useState(false);
-    const [messages, setMessages] = useState([]);
-    const [input, setInput] = useState('');
-    const [isTyping, setIsTyping] = useState(false);
-    const [hasGreeted, setHasGreeted] = useState(false);
-    const [pulse, setPulse] = useState(false);
+export default function TessChatWidget({ open, setOpen }) {
+    const [messages, setMessages] = React.useState([]);
+    const [input, setInput] = React.useState('');
+    const [isTyping, setIsTyping] = React.useState(false);
+    const [hasGreeted, setHasGreeted] = React.useState(false);
+    
     const bottomRef = useRef(null);
     const inputRef = useRef(null);
 
@@ -84,7 +83,7 @@ export default function TessChatWidget() {
             const greeting = {
                 id: 'greeting',
                 role: 'assistant',
-                content: 'Sistemas en línea. He revisado el estado del sistema y todo está en orden. Soy Tess, su agente principal. Estoy a su disposición. (Modelo: gemini-1.5-flash)',
+                content: 'Sistemas en línea (Gemini 1.5). He revisado el estado del sistema y todo está en orden. Soy TESS, su agente principal. ¿En qué puedo ayudarle hoy?',
                 timestamp: new Date().toISOString()
             };
             setTimeout(() => setMessages([greeting]), 400);
@@ -93,15 +92,6 @@ export default function TessChatWidget() {
             setTimeout(() => inputRef.current?.focus(), 100);
         }
     }, [open, hasGreeted, messages.length]);
-
-    // Pulso visual cuando hay msgs nuevos y el widget está cerrado
-    useEffect(() => {
-        if (!open && messages.length > 0) {
-            setPulse(true);
-            const t = setTimeout(() => setPulse(false), 3000);
-            return () => clearTimeout(t);
-        }
-    }, [messages.length, open]);
 
     const sendMessage = useCallback(async () => {
         const text = input.trim();
@@ -124,8 +114,7 @@ export default function TessChatWidget() {
             }
             const result = await window.electronAPI.agents.chat({
                 message: text,
-                agentId: 'main',
-                channel: 'local',
+                agentId: 'main'
             });
 
             const tessMsg = {
@@ -155,86 +144,76 @@ export default function TessChatWidget() {
         }
     };
 
+    if (!open) return null;
+
     return (
-        <>
-            {/* Panel de chat */}
-            <div className={`tess-panel ${open ? 'tess-panel--open' : ''}`} aria-label="Chat TESS">
-                {/* Header */}
-                <div className="tess-panel-header">
-                    <div className="tess-header-identity">
-                        <div className="tess-header-avatar">
-                            <Bot size={24} />
-                        </div>
-                        <div>
-                            <span className="tess-header-name">TESS</span>
-                            <span className="tess-header-sub">Agente Principal · En línea</span>
-                        </div>
+        <div className={`tess-panel ${open ? 'tess-panel--open' : ''}`} aria-label="Chat TESS" style={{
+            bottom: '80px',
+            right: '20px',
+            position: 'fixed',
+            zIndex: 10000
+        }}>
+            {/* Header */}
+            <div className="tess-panel-header">
+                <div className="tess-header-identity">
+                    <div className="tess-header-avatar">
+                        <Bot size={24} />
                     </div>
-                    <div className="tess-header-actions">
-                        <button
-                            className="tess-icon-btn"
-                            title="Limpiar historial"
-                            onClick={async () => {
-                                if (window.confirm('¿Desea limpiar el historial de TESS?')) {
-                                    await window.electronAPI?.agents?.clearMemory('main');
-                                    setMessages([]);
-                                    setHasGreeted(false);
-                                }
-                            }}
-                        >
-                            <Trash2 size={16} />
-                        </button>
-                        <button className="tess-icon-btn" onClick={() => setOpen(false)}>
-                            <X size={18} />
-                        </button>
+                    <div>
+                        <span className="tess-header-name">TESS</span>
+                        <span className="tess-header-sub">Agente Principal · En línea</span>
                     </div>
                 </div>
-
-                {/* Messages */}
-                <div className="tess-messages">
-                    {messages.map(msg => (
-                        <Message key={msg.id} msg={msg} />
-                    ))}
-                    {isTyping && <TypingIndicator />}
-                    <div ref={bottomRef} />
-                </div>
-
-                {/* Input */}
-                <div className="tess-input-bar">
-                    <textarea
-                        ref={inputRef}
-                        className="tess-input"
-                        placeholder="Escribe a TESS... (Enter para enviar)"
-                        value={input}
-                        onChange={e => setInput(e.target.value)}
-                        onKeyDown={handleKeyDown}
-                        rows={1}
-                        disabled={isTyping}
-                    />
+                <div className="tess-header-actions">
                     <button
-                        className={`tess-send-btn ${isTyping ? 'loading' : ''}`}
-                        onClick={sendMessage}
-                        disabled={!input.trim() || isTyping}
-                        title="Enviar"
+                        className="tess-icon-btn"
+                        title="Limpiar historial"
+                        onClick={async () => {
+                            if (window.confirm('¿Desea limpiar el historial de TESS?')) {
+                                await window.electronAPI?.agents?.clearMemory('main');
+                                setMessages([]);
+                                setHasGreeted(false);
+                            }
+                        }}
                     >
-                        {isTyping ? <Loader2 size={18} className="spin" /> : <ArrowUp size={20} />}
+                        <Trash2 size={16} />
+                    </button>
+                    <button className="tess-icon-btn" onClick={() => setOpen(false)}>
+                        <X size={18} />
                     </button>
                 </div>
             </div>
 
-            {/* Botón flotante */}
-            <button
-                id="tess-fab"
-                className={`tess-fab ${open ? 'tess-fab--active' : ''} ${pulse ? 'tess-fab--pulse' : ''}`}
-                onClick={() => setOpen(prev => !prev)}
-                title="Hablar con TESS"
-                aria-label="Abrir chat de TESS"
-            >
-                <span className="tess-fab-emoji">
-                    {open ? <X size={20} /> : <Bot size={22} />}
-                </span>
-                {!open && <span className="tess-fab-label">TESS</span>}
-            </button>
-        </>
+            {/* Messages */}
+            <div className="tess-messages">
+                {messages.map(msg => (
+                    <Message key={msg.id} msg={msg} />
+                ))}
+                {isTyping && <TypingIndicator />}
+                <div ref={bottomRef} />
+            </div>
+
+            {/* Input */}
+            <div className="tess-input-bar">
+                <textarea
+                    ref={inputRef}
+                    className="tess-input"
+                    placeholder="Escribe a TESS..."
+                    value={input}
+                    onChange={e => setInput(e.target.value)}
+                    onKeyDown={handleKeyDown}
+                    rows={1}
+                    disabled={isTyping}
+                />
+                <button
+                    className={`tess-send-btn ${isTyping ? 'loading' : ''}`}
+                    onClick={sendMessage}
+                    disabled={!input.trim() || isTyping}
+                    title="Enviar"
+                >
+                    {isTyping ? <Loader2 size={18} className="spin" /> : <ArrowUp size={20} />}
+                </button>
+            </div>
+        </div>
     );
 }

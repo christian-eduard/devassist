@@ -3,7 +3,19 @@ const { customType } = require('drizzle-orm/pg-core');
 
 // Definición de tipo Vector para pgvector
 const vector = customType({
-  dataType() { return 'vector(1536)'; } // OpenAI/Gemini Embeddings Standard
+  dataType() { return 'vector(1536)'; },
+  toDriver(value) {
+    if (Array.isArray(value)) {
+      return `[${value.join(',')}]`;
+    }
+    return value;
+  },
+  fromDriver(value) {
+    if (typeof value === 'string') {
+      return value.replace(/[\[\]]/g, '').split(',').map(Number);
+    }
+    return value;
+  }
 });
 
 // Fichas (Cerebro RAG)
@@ -18,6 +30,26 @@ const fichas = pgTable('fichas', {
   metadata: jsonb('metadata').default({}),
   embedding: vector('embedding'),
   createdAt: timestamp('created_at').defaultNow(),
+  lastOpenedAt: timestamp('last_opened_at'),
+  
+  // Phase A Fields
+  tlDr: text('tl_dr'),
+  keyPoints: jsonb('key_points').default([]),
+  verbatimQuotes: jsonb('verbatim_quotes').default([]),
+  implementationSteps: jsonb('implementation_steps').default([]),
+  comparisonMatrix: jsonb('comparison_matrix').default({}),
+  obsolescenceScore: integer('obsolescence_score').default(5),
+  confidenceScore: customType({ dataType() { return 'double precision'; } })('confidence_score').default(0.0),
+  researchStatus: text('research_status').default('pending'),
+  nextResearchAt: timestamp('next_research_at'),
+  researchLog: jsonb('research_log').default([]),
+  urgency: integer('urgency').default(3),
+  techStack: jsonb('tech_stack').default([]),
+  contentType: text('content_type').default('demo'),
+  gdocId: text('gdoc_id'),
+  collaborators: jsonb('collaborators').default([]),
+  modelResponses: jsonb('model_responses').default({}),
+  divergences: jsonb('divergences').default([]),
 });
 
 // Proyectos (Matching Inteligente)
@@ -28,6 +60,12 @@ const projects = pgTable('projects', {
   description: text('description'),
   stack: jsonb('stack').default([]),
   projectEmbedding: vector('project_embedding'),
+  fullContext: jsonb('full_context').default({}),
+  fileTree: jsonb('file_tree').default({}),
+  mermaidStructure: text('mermaid_structure'),
+  codeStats: jsonb('code_stats').default({}),
+  lastOpened: timestamp('last_opened'),
+  monitoring: integer('monitoring').default(0),
   updatedAt: timestamp('updated_at').defaultNow(),
 });
 
@@ -83,4 +121,33 @@ const agentMemory = pgTable('agent_memory', {
   timestamp: timestamp('timestamp').defaultNow(),
 });
 
-module.exports = { fichas, projects, settings, notifications, notes, agents, agentMemory };
+// Skills (ClawHub)
+const skills = pgTable('skills', {
+  id: text('id').primaryKey(),
+  name: text('name').notNull(),
+  description: text('description'),
+  author: text('author'),
+  version: text('version'),
+  downloads: integer('downloads').default(0),
+  stars: integer('stars').default(0),
+  fullReport: text('full_report'),
+  isSuggested: integer('is_suggested').default(0),
+  suggestedAt: timestamp('suggested_at'),
+  installed: integer('installed').default(0),
+  localPath: text('local_path'),
+  remoteUrl: text('remote_url'),
+  createdAt: timestamp('created_at').defaultNow(),
+  updatedAt: timestamp('updated_at').defaultNow(),
+});
+
+// Métricas de IA (Telemetría AI Hub V8)
+const aiUsage = pgTable('ai_usage', {
+  id: serial('id').primaryKey(),
+  provider: text('provider').notNull(),
+  model: text('model'),
+  tokens: integer('tokens').default(0),
+  costSaved: customType({ dataType() { return 'double precision'; } })('cost_saved').default(0.0),
+  timestamp: timestamp('timestamp').defaultNow(),
+});
+
+module.exports = { fichas, projects, settings, notifications, notes, agents, agentMemory, skills, aiUsage };
