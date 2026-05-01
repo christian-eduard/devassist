@@ -84,7 +84,10 @@ function createWindow() {
         mainWindow.maximize();
     }
 
-    mainWindow.show();
+    // Mostrar la ventana cuando el contenido esté listo (evita pantalla negra)
+    mainWindow.once('ready-to-show', () => {
+        mainWindow.show();
+    });
 
     const saveState = () => {
         try {
@@ -102,15 +105,43 @@ function createWindow() {
     mainWindow.on('resize', saveState);
     mainWindow.on('move', saveState);
 
-    if (isDev) {
-        if (process.env.VITE_DEV_SERVER_URL) {
-            mainWindow.loadURL(process.env.VITE_DEV_SERVER_URL);
+    // Capturar errores de carga de la página
+    mainWindow.webContents.on('did-fail-load', (event, errorCode, errorDescription, validatedURL) => {
+        logger.error(`[Main] Fallo cargando URL: ${validatedURL} — ${errorDescription} (code: ${errorCode})`);
+    });
+
+    mainWindow.webContents.on('did-finish-load', () => {
+        logger.info('[Main] HTML cargado. Esperando render de React...');
+    });
+
+    // Capturar TODOS los logs/errores del renderer en la terminal
+    mainWindow.webContents.on('console-message', (event, level, message, line, sourceId) => {
+        const levels = ['DEBUG', 'INFO', 'WARN', 'ERROR'];
+        const tag = levels[level] || 'LOG';
+        if (level >= 2) { // solo WARN y ERROR
+            logger.error(`[Renderer:${tag}] ${message} (${sourceId}:${line})`);
         } else {
-            mainWindow.loadURL('http://localhost:3123');
+            logger.info(`[Renderer:${tag}] ${message}`);
         }
+    });
+
+    if (isDev) {
+        const devUrl = process.env.VITE_DEV_SERVER_URL || 'http://localhost:3123';
+        logger.info(`[Main] Cargando URL de desarrollo: ${devUrl}`);
+        mainWindow.loadURL(devUrl);
+        // Abrir DevTools para diagnóstico en desarrollo
+        mainWindow.webContents.openDevTools({ mode: 'detach' });
     } else {
         mainWindow.loadFile(path.join(__dirname, '..', 'dist', 'index.html'));
     }
+
+    // Fallback: si la ventana no se muestra en 8 segundos, forzar show
+    setTimeout(() => {
+        if (mainWindow && !mainWindow.isVisible()) {
+            logger.warn('[Main] Timeout: forzando show de ventana.');
+            mainWindow.show();
+        }
+    }, 8000);
 
     mainWindow.on('closed', () => {
         mainWindow = null;
