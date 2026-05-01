@@ -1,6 +1,6 @@
 const { exec } = require('child_process');
-const TelegramBot = require('node-telegram-bot-api');
-// const { Client, LocalAuth } = require('whatsapp-web.js'); // ELIMINADO
+// Lazy-loaded: node-telegram-bot-api crashes on Electron 28's Node runtime (readable-stream incompatibility)
+let TelegramBot = null;
 const qrcode = require('qrcode');
 const { loadConfig, saveConfig } = require('./config');
 const { processTikTokUrl } = require('./fichas');
@@ -65,6 +65,12 @@ function initTelegram(config) {
     }
 
     if (!tgBot) {
+        try {
+            if (!TelegramBot) TelegramBot = require('node-telegram-bot-api');
+        } catch (err) {
+            logger.error('[Clawbot] No se pudo cargar node-telegram-bot-api:', err.message);
+            return;
+        }
         tgBot = new TelegramBot(config.clawbot_telegramToken, { polling: true });
         logger.info('[Clawbot] Telegram iniciado.');
 
