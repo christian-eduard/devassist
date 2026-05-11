@@ -1,0 +1,16 @@
+{
+  "name": "devassist-web",
+  "version": "1.0.0",
+  "private": true,
+  "description": "DevAssist web app: dashboard React + API server",
+  "scripts": {
+    "dev:dashboard": "npm --prefix dashboard run dev",
+    "dev:server": "npm --prefix server run dev",
+    "build": "npm --prefix dashboard run build",
+    "test": "npm --prefix server test"
+  },
+  "workspaces": [
+    "dashboard",
+    "server"
+  ]
+}
