@@ -6,6 +6,7 @@ import SearchPage from './pages/SearchPage';
 import FichaDetailPage from './pages/FichaDetailPage';
 import AIHubPage from './pages/AIHubPage';
 import ProjectsPage from './pages/ProjectsPage';
+import GraphifyPage from './pages/GraphifyPage';
 import TessChatWidget from './components/TessChatWidget';
 
 export default function App() {
@@ -26,6 +27,8 @@ export default function App() {
     content = <AIHubPage />;
   } else if (currentPage === 'projects') {
     content = <ProjectsPage />;
+  } else if (currentPage === 'graphify') {
+    content = <GraphifyPage />;
   } else {
     content = <DashboardPage onSelectFicha={(id) => navigate('detail', id)} />;
   }

@@ -1,0 +1,98 @@
+{
+  "/Users/chris/Desktop/DevAssist/server/src/index.js": {
+    "mtime": 1778472617.903134,
+    "hash": "3ecbd44996b8c507a6bf1768efe3e0df"
+  },
+  "/Users/chris/Desktop/DevAssist/server/src/config.js": {
+    "mtime": 1777680896.4219284,
+    "hash": "13c05951c2406b645b6a2e02993ae300"
+  },
+  "/Users/chris/Desktop/DevAssist/server/src/middleware/auth.js": {
+    "mtime": 1777681074.9651332,
+    "hash": "c40cfefc3ae8ac177b60a3d773a435bd"
+  },
+  "/Users/chris/Desktop/DevAssist/server/src/middleware/sessionAuth.js": {
+    "mtime": 1777779976.5703125,
+    "hash": "0e548796929ba9f63a61f5b2cb9d5279"
+  },
+  "/Users/chris/Desktop/DevAssist/server/src/middleware/errorHandler.js": {
+    "mtime": 1777681082.843104,
+    "hash": "df64d468fabb63116d79e176a40d0f50"
+  },
+  "/Users/chris/Desktop/DevAssist/server/src/utils/validators.js": {
+    "mtime": 1777680917.7849922,
+    "hash": "0f0de5f01ea0040103e51a6f17dc9902"
+  },
+  "/Users/chris/Desktop/DevAssist/server/src/utils/logger.js": {
+    "mtime": 1777680904.2978196,
+    "hash": "a99e84d229e9ed392a692b4672b517c5"
+  },
+  "/Users/chris/Desktop/DevAssist/server/src/db/connection.js": {
+    "mtime": 1778289627.895496,
+    "hash": "ae91eb2260a3b6f6e6d2420088df0c33"
+  },
+  "/Users/chris/Desktop/DevAssist/server/src/db/queries.js": {
+    "mtime": 1778288974.9357812,
+    "hash": "1839ec267ac6bb31a7ea25f6f16efc03"
+  },
+  "/Users/chris/Desktop/DevAssist/server/src/workers/videoProcessor.js": {
+    "mtime": 1778472601.4845936,
+    "hash": "36651dd4e245ca9087e2321c7fa003d2"
+  },
+  "/Users/chris/Desktop/DevAssist/server/src/routes/ai.js": {
+    "mtime": 1778288976.961549,
+    "hash": "1971d874974897af14e8fec42016d182"
+  },
+  "/Users/chris/Desktop/DevAssist/server/src/routes/health.js": {
+    "mtime": 1777681124.8477802,
+    "hash": "5cb455981a47839caba7ebed1cb78c4a"
+  },
+  "/Users/chris/Desktop/DevAssist/server/src/routes/agents.js": {
+    "mtime": 1778289647.5426352,
+    "hash": "5b730df4b6092c59fa9fc98f356dd642"
+  },
+  "/Users/chris/Desktop/DevAssist/server/src/routes/apiKeys.js": {
+    "mtime": 1777779960.6562648,
+    "hash": "a3b547fb8e91391408b12d3e5375e78f"
+  },
+  "/Users/chris/Desktop/DevAssist/server/src/routes/auth.js": {
+    "mtime": 1777779938.7870498,
+    "hash": "12e1e7bf7e9211ab864374398ebace4e"
+  },
+  "/Users/chris/Desktop/DevAssist/server/src/routes/projects.js": {
+    "mtime": 1778289645.525322,
+    "hash": "c484125286d68761254dcdff0dc69853"
+  },
+  "/Users/chris/Desktop/DevAssist/server/src/routes/admin.js": {
+    "mtime": 1777779995.1617303,
+    "hash": "51963604f913c68e3a73834507a318cb"
+  },
+  "/Users/chris/Desktop/DevAssist/server/src/routes/search.js": {
+    "mtime": 1777681114.9190516,
+    "hash": "0a555691132a5663842976153f280721"
+  },
+  "/Users/chris/Desktop/DevAssist/server/src/routes/fichas.js": {
+    "mtime": 1777681098.761662,
+    "hash": "3cd5f9151c603551ffa8b9e23037bc05"
+  },
+  "/Users/chris/Desktop/DevAssist/server/src/services/analyzer.js": {
+    "mtime": 1777681028.584594,
+    "hash": "86a37610cc3c120796f06be81a3583ec"
+  },
+  "/Users/chris/Desktop/DevAssist/server/src/services/transcriber.js": {
+    "mtime": 1777681010.5982597,
+    "hash": "cb793f0a39e5aa76921c2c0df68a795a"
+  },
+  "/Users/chris/Desktop/DevAssist/server/src/services/gemini.js": {
+    "mtime": 1777680975.405265,
+    "hash": "735249afd2de57ffa883ad9ce9dfa932"
+  },
+  "/Users/chris/Desktop/DevAssist/server/src/services/downloader.js": {
+    "mtime": 1778471796.4207585,
+    "hash": "d2587fdcd8e6bf7a1ce33a8244c67ae7"
+  },
+  "/Users/chris/Desktop/DevAssist/server/src/services/embedder.js": {
+    "mtime": 1777681040.0910275,
+    "hash": "d2bb30f4f5f0d08c16d23a19163b4451"
+  }
+}

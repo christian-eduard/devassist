@@ -1,0 +1,2325 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>server — Complete Call Flow &amp; Architecture Documentation</title>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+<style>
+:root {
+  --bg: #0f172a; --surface: #1e293b; --border: #334155;
+  --text: #e2e8f0; --muted: #94a3b8; --accent: #38bdf8;
+  --warn: #fbbf24; --err: #f87171; --ok: #34d399;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; background: var(--bg); color: var(--text); line-height: 1.7; }
+.container { max-width: 1200px; margin: 0 auto; padding: 40px 24px; }
+h1 { font-size: 2.4rem; margin-bottom: 8px; background: linear-gradient(135deg, var(--accent), #a78bfa); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+h2 { font-size: 1.7rem; margin: 48px 0 16px; padding-bottom: 8px; border-bottom: 2px solid var(--accent); }
+h3 { font-size: 1.25rem; margin: 32px 0 12px; color: var(--accent); }
+h4 { font-size: 1.05rem; margin: 20px 0 8px; color: var(--warn); }
+p { margin: 8px 0; color: var(--muted); }
+.subtitle { color: var(--muted); font-size: 1.1rem; margin-bottom: 32px; }
+.mermaid { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 24px; margin: 20px 0; overflow-x: auto; position: relative; }
+.mermaid.is-enhanced { padding: 0; overflow: hidden; min-height: 260px; }
+.mermaid-viewport { padding: 54px 24px 24px; overflow: hidden; cursor: grab; touch-action: none; min-height: 260px; }
+.mermaid-viewport.is-dragging { cursor: grabbing; }
+.mermaid-viewport svg { max-width: none !important; height: auto; transform-origin: 0 0; transition: transform 120ms ease; }
+.mermaid-toolbar { position: absolute; top: 10px; right: 10px; z-index: 3; display: flex; align-items: center; gap: 6px; padding: 6px; background: rgba(15,23,42,0.92); border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,0.28); }
+.mermaid-toolbar button, .mermaid-toolbar .zoom-level { height: 28px; min-width: 32px; border: 1px solid var(--border); border-radius: 6px; background: #1e293b; color: var(--text); font: 600 0.78rem system-ui, sans-serif; display: inline-flex; align-items: center; justify-content: center; }
+.mermaid-toolbar button { cursor: pointer; }
+.mermaid-toolbar button:hover { border-color: var(--accent); color: var(--accent); }
+.mermaid-toolbar .zoom-level { min-width: 52px; color: var(--muted); background: transparent; }
+.call-table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 0.92rem; }
+.call-table th { background: #1a2744; color: var(--accent); text-align: left; padding: 10px 14px; border: 1px solid var(--border); }
+.call-table td { padding: 8px 14px; border: 1px solid var(--border); vertical-align: top; }
+.call-table tr:nth-child(even) { background: rgba(255,255,255,0.02); }
+.tag { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 0.8rem; font-weight: 600; }
+.tag-async { background: #7c3aed33; color: #a78bfa; }
+.tag-class { background: #05966933; color: var(--ok); }
+.tag-func { background: #2563eb33; color: var(--accent); }
+.tag-cmd { background: #d9770633; color: var(--warn); }
+.tag-endpoint { background: #dc262633; color: var(--err); }
+.tag-hook { background: #db277733; color: #f472b6; }
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 20px; margin: 16px 0; }
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 16px; margin: 16px 0; }
+.arrow-chain { font-family: 'Fira Code', monospace; font-size: 0.85rem; color: var(--accent); padding: 10px; background: rgba(56,189,248,0.06); border-radius: 6px; }
+code { font-family: 'Fira Code', 'Cascadia Code', monospace; background: rgba(255,255,255,0.06); padding: 1px 6px; border-radius: 3px; font-size: 0.88em; }
+ul, ol { margin: 8px 0 8px 24px; color: var(--muted); }
+li { margin: 4px 0; }
+a { color: var(--accent); }
+hr { border: none; border-top: 1px solid var(--border); margin: 40px 0; }
+.nav { position: sticky; top: 0; background: var(--bg); z-index: 10; padding: 12px 0; border-bottom: 1px solid var(--border); display: flex; gap: 20px; flex-wrap: wrap; font-size: 0.9rem; }
+.nav a { text-decoration: none; }
+.nav a:hover { text-decoration: underline; }
+@media (max-width: 768px) { .container { padding: 16px; } h1 { font-size: 1.8rem; } }
+
+</style>
+</head>
+<body>
+<div class="container">
+
+<h1>server — Complete Call Flow &amp; Architecture Documentation</h1>
+<p class="subtitle">Generated from graphify knowledge graph: 169 nodes, 229 edges, 10 communities. Commit: 14d1936</p>
+
+<div class="nav">
+    <a href="#overview">Architecture Overview</a>
+    <a href="#analysis-clustering">Analysis &amp; Clustering</a>
+    <a href="#serve-api">Serving API</a>
+    <a href="#indexjs-middleware-authjs">Indexjs Middleware Authjs</a>
+    <a href="#aijs-routes-loggerjs">Aijs Routes Loggerjs</a>
+    <a href="#geminijs-services-configjs">Geminijs Services Configjs</a>
+    <a href="#authjs-routes-express">Authjs Routes Express</a>
+    <a href="#apikeysjs-routes-express">Apikeysjs Routes Express</a>
+    <a href="#downloaderjs-services-exec">Downloaderjs Services Exec</a>
+    <a href="#projectsjs-routes-express">Projectsjs Routes Express</a>
+</div>
+
+<!-- ====== Architecture Overview ====== -->
+<h2 id="overview">1. Architecture Overview</h2>
+
+<div class="mermaid">
+
+%%{init: {"theme": "dark", "themeVariables": {"fontSize": "15.0px", "fontFamily": "Segoe UI, system-ui, sans-serif", "primaryColor": "#1e293b", "primaryTextColor": "#e2e8f0", "primaryBorderColor": "#38bdf8", "secondaryColor": "#0f172a", "tertiaryColor": "#334155", "lineColor": "#64748b", "textColor": "#e2e8f0"}, "flowchart": {"htmlLabels": true, "curve": "basis", "nodeSpacing": 48, "rankSpacing": 64, "padding": 14, "diagramPadding": 10, "useMaxWidth": true}}}%%
+flowchart LR
+    ANALYSIS_CLUSTERING_C79796DA("Analysis &amp; Clustering<br/><small>26 nodes</small>")
+    class ANALYSIS_CLUSTERING_C79796DA module;
+    SERVE_API_35EC8E86("Serving API<br/><small>48 nodes</small>")
+    class SERVE_API_35EC8E86 module;
+    INDEXJS_MIDDLEWARE_AUTHJS_4224A7A2("Indexjs Middleware Authjs<br/><small>25 nodes</small>")
+    class INDEXJS_MIDDLEWARE_AUTHJS_4224A7A2 module;
+    AIJS_ROUTES_LOGGERJS_11332057("Aijs Routes Loggerjs<br/><small>15 nodes</small>")
+    class AIJS_ROUTES_LOGGERJS_11332057 module;
+    GEMINIJS_SERVICES_CONFIGJS_C71E1D7E("Geminijs Services Configjs<br/><small>14 nodes</small>")
+    class GEMINIJS_SERVICES_CONFIGJS_C71E1D7E module;
+    AUTHJS_ROUTES_EXPRESS_7DDDE599("Authjs Routes Express<br/><small>13 nodes</small>")
+    class AUTHJS_ROUTES_EXPRESS_7DDDE599 module;
+    APIKEYSJS_ROUTES_EXPRESS_A5B79923("Apikeysjs Routes Express<br/><small>11 nodes</small>")
+    class APIKEYSJS_ROUTES_EXPRESS_A5B79923 module;
+    DOWNLOADERJS_SERVICES_EXEC_FBD76E2A("Downloaderjs Services Exec<br/><small>10 nodes</small>")
+    class DOWNLOADERJS_SERVICES_EXEC_FBD76E2A module;
+    PROJECTSJS_ROUTES_EXPRESS_26FE523E("Projectsjs Routes Express<br/><small>7 nodes</small>")
+    class PROJECTSJS_ROUTES_EXPRESS_26FE523E module;
+    AIJS_ROUTES_LOGGERJS_11332057 -->|imports x7| SERVE_API_35EC8E86
+    INDEXJS_MIDDLEWARE_AUTHJS_4224A7A2 -->|imports x5| SERVE_API_35EC8E86
+    AIJS_ROUTES_LOGGERJS_11332057 -->|imports x5| ANALYSIS_CLUSTERING_C79796DA
+    INDEXJS_MIDDLEWARE_AUTHJS_4224A7A2 -->|imports x3| AIJS_ROUTES_LOGGERJS_11332057
+    ANALYSIS_CLUSTERING_C79796DA -->|imports x3| DOWNLOADERJS_SERVICES_EXEC_FBD76E2A
+    AIJS_ROUTES_LOGGERJS_11332057 -->|imports x2| GEMINIJS_SERVICES_CONFIGJS_C71E1D7E
+    SERVE_API_35EC8E86 -->|imports x2| AIJS_ROUTES_LOGGERJS_11332057
+    SERVE_API_35EC8E86 -->|imports x2| APIKEYSJS_ROUTES_EXPRESS_A5B79923
+    SERVE_API_35EC8E86 -->|imports x2| AUTHJS_ROUTES_EXPRESS_7DDDE599
+    SERVE_API_35EC8E86 -->|imports x2| PROJECTSJS_ROUTES_EXPRESS_26FE523E
+    ANALYSIS_CLUSTERING_C79796DA -->|imports x2| SERVE_API_35EC8E86
+    ANALYSIS_CLUSTERING_C79796DA -->|imports x2| GEMINIJS_SERVICES_CONFIGJS_C71E1D7E
+    classDef entry fill:#422006,stroke:#fbbf24,color:#fde68a,stroke-width:1px;
+    classDef api fill:#450a0a,stroke:#f87171,color:#fee2e2,stroke-width:1px;
+    classDef async fill:#2e1065,stroke:#a78bfa,color:#ede9fe,stroke-width:1px;
+    classDef klass fill:#064e3b,stroke:#34d399,color:#d1fae5,stroke-width:1px;
+    classDef ui fill:#831843,stroke:#f472b6,color:#fce7f3,stroke-width:1px;
+    classDef module fill:#172554,stroke:#60a5fa,color:#dbeafe,stroke-width:1px;
+    classDef test fill:#3f3f46,stroke:#a1a1aa,color:#f4f4f5,stroke-width:1px;
+    classDef concept fill:#292524,stroke:#a8a29e,color:#fafaf9,stroke-dasharray:4 3;
+    classDef function fill:#0f172a,stroke:#38bdf8,color:#e0f2fe,stroke-width:1px;
+</div>
+
+<div class="grid">
+  <div class="card">
+    <h4>Architecture Layers</h4>
+    <table style="width:100%;font-size:0.85rem;">
+      <tr><th>Layer</th><th>Nodes</th><th>Communities</th></tr>
+      <tr><td>Analysis &amp; Clustering</td><td>26</td><td><code>1</code></td></tr><tr><td>Serving API</td><td>48</td><td><code>0, 3</code></td></tr><tr><td>Indexjs Middleware Authjs</td><td>25</td><td><code>2</code></td></tr><tr><td>Aijs Routes Loggerjs</td><td>15</td><td><code>4</code></td></tr><tr><td>Geminijs Services Configjs</td><td>14</td><td><code>5</code></td></tr><tr><td>Authjs Routes Express</td><td>13</td><td><code>6</code></td></tr><tr><td>Apikeysjs Routes Express</td><td>11</td><td><code>7</code></td></tr><tr><td>Downloaderjs Services Exec</td><td>10</td><td><code>8</code></td></tr><tr><td>Projectsjs Routes Express</td><td>7</td><td><code>9</code></td></tr>
+    </table>
+  </div>
+  <div class="card">
+    <h4>Core Flow</h4>
+    <div class="arrow-chain">Indexjs Middleware Authjs -&gt; Serving API -&gt; Projectsjs Routes Express -&gt; Analysis &amp; Clustering -&gt; Downloaderjs Services Exec -&gt; Aijs Routes Loggerjs -&gt; Geminijs Services Configjs</div>
+  </div>
+</div>
+<div class="grid">
+  <div class="card">
+    <h4>Graph Report Highlights</h4>
+    <ul>
+      <li>169 nodes · 229 edges · 10 communities</li>
+      <li>Extraction: 100% EXTRACTED · 0% INFERRED · 0% AMBIGUOUS</li>
+      <li>Token cost: 0 input · 0 output</li>
+      <li>1. `{ Pool }` - 9 edges</li>
+      <li>2. `processVideo()` - 7 edges</li>
+      <li>3. `downloadAndExtract()` - 5 edges</li>
+    </ul>
+  </div>
+</div>
+<hr>
+<!-- ====== 2. Analysis & Clustering ====== -->
+<h2 id="analysis-clustering">2. Analysis &amp; Clustering</h2>
+<p>Analysis &amp; Clustering groups implementation around services, videoprocessorjs, workers, analyzerjs, mostly in workers/videoProcessor.js, services/analyzer.js, services/transcriber.js. This section covers 26 nodes and 33 internal edges; the diagram shows only representative relationships to stay readable.</p>
+
+<div class="mermaid">
+%%{init: {"theme": "dark", "themeVariables": {"fontSize": "15.0px", "fontFamily": "Segoe UI, system-ui, sans-serif", "primaryColor": "#1e293b", "primaryTextColor": "#e2e8f0", "primaryBorderColor": "#38bdf8", "secondaryColor": "#0f172a", "tertiaryColor": "#334155", "lineColor": "#64748b", "textColor": "#e2e8f0"}, "flowchart": {"htmlLabels": true, "curve": "basis", "nodeSpacing": 48, "rankSpacing": 64, "padding": 14, "diagramPadding": 10, "useMaxWidth": true}}}%%
+flowchart LR
+    %% Section: Analysis &amp; Clustering (26 nodes, 33 edges)
+    subgraph analysis_clustering_services_analyzer_js_9d3be67d["services/analyzer.js"]
+        services_analyzer_extractjson_4f583b36("extractJSON()<br/><small>services/analyzer.js</small>")
+        services_analyzer_analyze_fda0cba2("analyze()<br/><small>services/analyzer.js</small>")
+        services_analyzer_js_af08d434("analyzer.js")
+        services_analyzer_gemini_51d94a01("gemini<br/><small>services/analyzer.js</small>")
+        services_analyzer_logger_45f3f5bd("logger<br/><small>services/analyzer.js</small>")
+    end
+    subgraph analysis_clustering_services_transcriber_js_87cd26c1["services/transcriber.js"]
+        services_transcriber_transcribe_6343172d("transcribe()<br/><small>services/transcriber.js</small>")
+        services_transcriber_js_55836d78("transcriber.js")
+        services_transcriber_fs_cf61eceb("fs<br/><small>services/transcriber.js</small>")
+        services_transcriber_gemini_bc5e7f80("gemini<br/><small>services/transcriber.js</small>")
+        services_transcriber_logger_467ffd4a("logger<br/><small>services/transcriber.js</small>")
+    end
+    subgraph analysis_clustering_services_embedder_js_9c60ab24["services/embedder.js"]
+        services_embedder_generatefichaembedding_891364f2("generateFichaEmbedding()<br/><small>services/embedder.js</small>")
+        services_embedder_js_16543494("embedder.js")
+        services_embedder_gemini_17651af4("gemini<br/><small>services/embedder.js</small>")
+        services_embedder_logger_ef2d9290("logger<br/><small>services/embedder.js</small>")
+    end
+    subgraph analysis_clustering_workers_videoProcessor_js_c26d414c["workers/videoProcessor.js"]
+        workers_videoprocessor_js_170478ae("videoProcessor.js")
+        workers_videoprocessor_processvideo_ef2393f4("processVideo()<br/><small>workers/videoProcessor.js</small>")
+        workers_videoprocessor_videos_dir_af56dc40("VIDEOS_DIR<br/><small>workers/videoProcessor.js</small>")
+    end
+    services_downloader_cleanup_f1dc7045("cleanup()<br/><small>services/downloader.js</small>")
+    workers_videoprocessor_processvideo_ef2393f4 -->|calls| services_transcriber_transcribe_6343172d
+    workers_videoprocessor_processvideo_ef2393f4 -->|calls| services_analyzer_analyze_fda0cba2
+    workers_videoprocessor_processvideo_ef2393f4 -->|calls| services_embedder_generatefichaembedding_891364f2
+    workers_videoprocessor_processvideo_ef2393f4 -->|calls| services_downloader_cleanup_f1dc7045
+    services_analyzer_extractjson_4f583b36 -->|calls| services_analyzer_analyze_fda0cba2
+    workers_videoprocessor_js_170478ae -->|imports| services_downloader_cleanup_f1dc7045
+    workers_videoprocessor_js_170478ae -->|imports| services_transcriber_js_55836d78
+    workers_videoprocessor_js_170478ae -->|imports| services_transcriber_transcribe_6343172d
+    workers_videoprocessor_js_170478ae -->|imports| services_analyzer_js_af08d434
+    workers_videoprocessor_js_170478ae -->|imports| services_analyzer_analyze_fda0cba2
+    workers_videoprocessor_js_170478ae -->|imports| services_embedder_js_16543494
+    workers_videoprocessor_js_170478ae -->|imports| services_embedder_generatefichaembedding_891364f2
+    %% Omitted for readability: 8 nodes, 0 edges
+    class services_analyzer_extractjson_4f583b36 function;
+    class services_analyzer_analyze_fda0cba2 function;
+    class services_analyzer_js_af08d434 module;
+    class services_analyzer_gemini_51d94a01 function;
+    class services_analyzer_logger_45f3f5bd function;
+    class services_transcriber_transcribe_6343172d function;
+    class services_transcriber_js_55836d78 module;
+    class services_transcriber_fs_cf61eceb function;
+    class services_transcriber_gemini_bc5e7f80 function;
+    class services_transcriber_logger_467ffd4a function;
+    class services_embedder_generatefichaembedding_891364f2 function;
+    class services_embedder_js_16543494 module;
+    class services_embedder_gemini_17651af4 function;
+    class services_embedder_logger_ef2d9290 function;
+    class workers_videoprocessor_js_170478ae module;
+    class workers_videoprocessor_processvideo_ef2393f4 function;
+    class workers_videoprocessor_videos_dir_af56dc40 klass;
+    class services_downloader_cleanup_f1dc7045 function;
+    classDef entry fill:#422006,stroke:#fbbf24,color:#fde68a,stroke-width:1px;
+    classDef api fill:#450a0a,stroke:#f87171,color:#fee2e2,stroke-width:1px;
+    classDef async fill:#2e1065,stroke:#a78bfa,color:#ede9fe,stroke-width:1px;
+    classDef klass fill:#064e3b,stroke:#34d399,color:#d1fae5,stroke-width:1px;
+    classDef ui fill:#831843,stroke:#f472b6,color:#fce7f3,stroke-width:1px;
+    classDef module fill:#172554,stroke:#60a5fa,color:#dbeafe,stroke-width:1px;
+    classDef test fill:#3f3f46,stroke:#a1a1aa,color:#f4f4f5,stroke-width:1px;
+    classDef concept fill:#292524,stroke:#a8a29e,color:#fafaf9,stroke-dasharray:4 3;
+    classDef function fill:#0f172a,stroke:#38bdf8,color:#e0f2fe,stroke-width:1px;
+</div>
+
+<h3>Call Details</h3>
+<table class="call-table">
+<tr>
+  <th style="width:5%">#</th>
+  <th style="width:28%">Node</th>
+  <th style="width:10%">Type</th>
+  <th style="width:17%">Caller</th>
+  <th style="width:20%">Callees</th>
+  <th style="width:20%">Description</th>
+</tr>
+<tr>
+  <td>1</td>
+  <td><code>videoProcessor.js</code><br><small style="color:var(--muted)">workers/videoProcessor.js</small></td>
+  <td><span class="tag tag-class">Module</span></td>
+  <td>External entry / no inbound edge</td>
+  <td><code>analyze()</code><br><small style="color:var(--muted)">services/analyzer.js</small><br><code>analyzer.js</code><br><small style="color:var(--muted)">services/analyzer.js</small><br><code>cleanup()</code><br><small style="color:var(--muted)">services/downloader.js</small><br>+4 more</td>
+  <td>videoProcessor.js node in workers/videoProcessor.js.</td>
+</tr>
+<tr>
+  <td>2</td>
+  <td><code>fs</code><br><small style="color:var(--muted)">workers/videoProcessor.js</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>fs node in workers/videoProcessor.js.</td>
+</tr>
+<tr>
+  <td>3</td>
+  <td><code>path</code><br><small style="color:var(--muted)">workers/videoProcessor.js</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>path node in workers/videoProcessor.js.</td>
+</tr>
+<tr>
+  <td>4</td>
+  <td><code>{ downloadAndExtract, cleanup }</code><br><small style="color:var(--muted)">workers/videoProcessor.js</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>{ downloadAndExtract, cleanup } node in workers/videoProcessor.js.</td>
+</tr>
+<tr>
+  <td>5</td>
+  <td><code>{ transcribe }</code><br><small style="color:var(--muted)">workers/videoProcessor.js</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>{ transcribe } node in workers/videoProcessor.js.</td>
+</tr>
+<tr>
+  <td>6</td>
+  <td><code>{ analyze }</code><br><small style="color:var(--muted)">workers/videoProcessor.js</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>Orchestrates analysis and returns structured documentation data.</td>
+</tr>
+<tr>
+  <td>7</td>
+  <td><code>{ generateFichaEmbedding }</code><br><small style="color:var(--muted)">workers/videoProcessor.js</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>{ generateFichaEmbedding } node in workers/videoProcessor.js.</td>
+</tr>
+<tr>
+  <td>8</td>
+  <td><code>db</code><br><small style="color:var(--muted)">workers/videoProcessor.js</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>db node in workers/videoProcessor.js.</td>
+</tr>
+<tr>
+  <td>9</td>
+  <td><code>logger</code><br><small style="color:var(--muted)">workers/videoProcessor.js</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>logger node in workers/videoProcessor.js.</td>
+</tr>
+<tr>
+  <td>10</td>
+  <td><code>VIDEOS_DIR</code><br><small style="color:var(--muted)">workers/videoProcessor.js</small></td>
+  <td><span class="tag tag-class">Class</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>VIDEOS_DIR node in workers/videoProcessor.js.</td>
+</tr>
+<tr>
+  <td>11</td>
+  <td><code>processVideo()</code><br><small style="color:var(--muted)">workers/videoProcessor.js</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td>External entry / no inbound edge</td>
+  <td><code>analyze()</code><br><small style="color:var(--muted)">services/analyzer.js</small><br><code>cleanup()</code><br><small style="color:var(--muted)">services/downloader.js</small><br><code>generateFichaEmbedding()</code><br><small style="color:var(--muted)">services/embedder.js</small><br>+1 more</td>
+  <td>processVideo() node in workers/videoProcessor.js.</td>
+</tr>
+<tr>
+  <td>12</td>
+  <td><code>analyzer.js</code><br><small style="color:var(--muted)">services/analyzer.js</small></td>
+  <td><span class="tag tag-class">Module</span></td>
+  <td><code>videoProcessor.js</code><br><small style="color:var(--muted)">workers/videoProcessor.js</small></td>
+  <td>No direct outbound edge</td>
+  <td>Orchestrates analysis and returns structured documentation data.</td>
+</tr>
+<tr>
+  <td>13</td>
+  <td><code>gemini</code><br><small style="color:var(--muted)">services/analyzer.js</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>gemini node in services/analyzer.js.</td>
+</tr>
+<tr>
+  <td>14</td>
+  <td><code>logger</code><br><small style="color:var(--muted)">services/analyzer.js</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>logger node in services/analyzer.js.</td>
+</tr>
+<tr>
+  <td>15</td>
+  <td><code>extractJSON()</code><br><small style="color:var(--muted)">services/analyzer.js</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td>External entry / no inbound edge</td>
+  <td><code>analyze()</code><br><small style="color:var(--muted)">services/analyzer.js</small></td>
+  <td>extractJSON() node in services/analyzer.js.</td>
+</tr>
+<tr>
+  <td>16</td>
+  <td><code>analyze()</code><br><small style="color:var(--muted)">services/analyzer.js</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td><code>extractJSON()</code><br><small style="color:var(--muted)">services/analyzer.js</small><br><code>processVideo()</code><br><small style="color:var(--muted)">workers/videoProcessor.js</small><br><code>videoProcessor.js</code><br><small style="color:var(--muted)">workers/videoProcessor.js</small></td>
+  <td>No direct outbound edge</td>
+  <td>Orchestrates analysis and returns structured documentation data.</td>
+</tr>
+<tr>
+  <td>17</td>
+  <td><code>transcriber.js</code><br><small style="color:var(--muted)">services/transcriber.js</small></td>
+  <td><span class="tag tag-class">Module</span></td>
+  <td><code>videoProcessor.js</code><br><small style="color:var(--muted)">workers/videoProcessor.js</small></td>
+  <td>No direct outbound edge</td>
+  <td>transcriber.js node in services/transcriber.js.</td>
+</tr>
+<tr>
+  <td>18</td>
+  <td><code>fs</code><br><small style="color:var(--muted)">services/transcriber.js</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>fs node in services/transcriber.js.</td>
+</tr>
+<tr>
+  <td>19</td>
+  <td><code>gemini</code><br><small style="color:var(--muted)">services/transcriber.js</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>gemini node in services/transcriber.js.</td>
+</tr>
+<tr>
+  <td>20</td>
+  <td><code>logger</code><br><small style="color:var(--muted)">services/transcriber.js</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>logger node in services/transcriber.js.</td>
+</tr>
+<tr>
+  <td>21</td>
+  <td><code>transcribe()</code><br><small style="color:var(--muted)">services/transcriber.js</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td><code>processVideo()</code><br><small style="color:var(--muted)">workers/videoProcessor.js</small><br><code>videoProcessor.js</code><br><small style="color:var(--muted)">workers/videoProcessor.js</small></td>
+  <td>No direct outbound edge</td>
+  <td>transcribe() node in services/transcriber.js.</td>
+</tr>
+<tr>
+  <td>22</td>
+  <td><code>cleanup()</code><br><small style="color:var(--muted)">services/downloader.js</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td><code>processVideo()</code><br><small style="color:var(--muted)">workers/videoProcessor.js</small><br><code>videoProcessor.js</code><br><small style="color:var(--muted)">workers/videoProcessor.js</small></td>
+  <td>No direct outbound edge</td>
+  <td>cleanup() node in services/downloader.js.</td>
+</tr>
+<tr>
+  <td>23</td>
+  <td><code>embedder.js</code><br><small style="color:var(--muted)">services/embedder.js</small></td>
+  <td><span class="tag tag-class">Module</span></td>
+  <td><code>videoProcessor.js</code><br><small style="color:var(--muted)">workers/videoProcessor.js</small></td>
+  <td>No direct outbound edge</td>
+  <td>embedder.js node in services/embedder.js.</td>
+</tr>
+<tr>
+  <td>24</td>
+  <td><code>gemini</code><br><small style="color:var(--muted)">services/embedder.js</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>gemini node in services/embedder.js.</td>
+</tr>
+<tr>
+  <td>25</td>
+  <td><code>logger</code><br><small style="color:var(--muted)">services/embedder.js</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>logger node in services/embedder.js.</td>
+</tr>
+<tr>
+  <td>26</td>
+  <td><code>generateFichaEmbedding()</code><br><small style="color:var(--muted)">services/embedder.js</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td><code>processVideo()</code><br><small style="color:var(--muted)">workers/videoProcessor.js</small><br><code>videoProcessor.js</code><br><small style="color:var(--muted)">workers/videoProcessor.js</small></td>
+  <td>No direct outbound edge</td>
+  <td>generateFichaEmbedding() node in services/embedder.js.</td>
+</tr>
+</table>
+
+<div class="grid">
+  <div class="card">
+    <h4>Key Files</h4>
+    <table style="width:100%;font-size:0.85rem;">
+      <tr><th>File</th><th>Coverage</th></tr>
+      <tr><td><code>workers/videoProcessor.js</code></td><td>11 nodes</td></tr>
+<tr><td><code>services/analyzer.js</code></td><td>5 nodes</td></tr>
+<tr><td><code>services/transcriber.js</code></td><td>5 nodes</td></tr>
+<tr><td><code>services/embedder.js</code></td><td>4 nodes</td></tr>
+<tr><td><code>services/downloader.js</code></td><td>1 nodes</td></tr>
+    </table>
+  </div>
+  <div class="card">
+    <h4>Design Notes</h4>
+    <p>This section comes from graphify community clustering. Relationship summary: contains x21, calls x5, imports x4, imports x3. The diagram prioritizes high-confidence calls or usage relationships; the table keeps the broader node inventory.</p>
+  </div>
+</div>
+<hr>
+
+<!-- ====== 3. Serving API ====== -->
+<h2 id="serve-api">3. Serving API</h2>
+<p>Serving API groups implementation around routes, fichasjs, searchjs, adminjs, mostly in routes/fichas.js, routes/search.js, routes/admin.js. This section covers 48 nodes and 52 internal edges; the diagram shows only representative relationships to stay readable.</p>
+
+<div class="mermaid">
+%%{init: {"theme": "dark", "themeVariables": {"fontSize": "15.0px", "fontFamily": "Segoe UI, system-ui, sans-serif", "primaryColor": "#1e293b", "primaryTextColor": "#e2e8f0", "primaryBorderColor": "#38bdf8", "secondaryColor": "#0f172a", "tertiaryColor": "#334155", "lineColor": "#64748b", "textColor": "#e2e8f0"}, "flowchart": {"htmlLabels": true, "curve": "basis", "nodeSpacing": 48, "rankSpacing": 64, "padding": 14, "diagramPadding": 10, "useMaxWidth": true}}}%%
+flowchart LR
+    %% Section: Serving API (48 nodes, 52 edges)
+    subgraph serve_api_middleware_sessionAuth_js_6fd36f0f["middleware/sessionAuth.js"]
+        middleware_sessionauth_js_12c34051("sessionAuth.js")
+        middleware_sessionauth_crypto_6794e048("crypto<br/><small>middleware/sessionAuth.js</small>")
+        middleware_sessionauth_requireadmin_f4c44532("requireAdmin()<br/><small>middleware/sessionAuth.js</small>")
+        middleware_sessionauth_sessionauth_db794358("sessionAuth()<br/><small>middleware/sessionAuth.js</small>")
+        middleware_sessionauth_pool_9cb64a4e("pool<br/><small>middleware/sessionAuth.js</small>")
+    end
+    subgraph serve_api_db_connection_js_15d6be19["db/connection.js"]
+        db_connection_js_6f3b5b68("connection.js")
+        db_connection_pool_64d0f859("Pool<br/><small>db/connection.js</small>")
+        db_connection_config_9fb2e8d7("config<br/><small>db/connection.js</small>")
+        db_connection_logger_3b0ec976("logger<br/><small>db/connection.js</small>")
+    end
+    subgraph serve_api_utils_validators_js_8aae4c64["utils/validators.js"]
+        utils_validators_js_3b31ec21("validators.js")
+        utils_validators_searchschema_8573475d("searchSchema<br/><small>utils/validators.js</small>")
+        utils_validators_submiturlschema_65d36001("submitUrlSchema<br/><small>utils/validators.js</small>")
+    end
+    subgraph serve_api_routes_admin_js_df048706["routes/admin.js"]
+        routes_admin_js_652e9ea7("admin.js")
+        routes_admin_express_9b379573("express<br/><small>routes/admin.js</small>")
+    end
+    routes_agents_js_1736b3d1("agents.js")
+    routes_fichas_js_cdd56f6c("fichas.js")
+    routes_health_js_fc98c1ea("health.js")
+    routes_search_js_79fcf09d("search.js")
+    middleware_sessionauth_js_12c34051 -->|imports| db_connection_js_6f3b5b68
+    middleware_sessionauth_js_12c34051 -->|imports| db_connection_pool_64d0f859
+    utils_validators_js_3b31ec21 -->|imports| routes_search_js_79fcf09d
+    utils_validators_js_3b31ec21 -->|imports| routes_fichas_js_cdd56f6c
+    utils_validators_submiturlschema_65d36001 -->|imports| routes_fichas_js_cdd56f6c
+    utils_validators_searchschema_8573475d -->|imports| routes_search_js_79fcf09d
+    db_connection_js_6f3b5b68 -->|imports| routes_health_js_fc98c1ea
+    db_connection_js_6f3b5b68 -->|imports| routes_agents_js_1736b3d1
+    db_connection_js_6f3b5b68 -->|imports| routes_admin_js_652e9ea7
+    db_connection_pool_64d0f859 -->|imports| routes_health_js_fc98c1ea
+    db_connection_pool_64d0f859 -->|imports| routes_agents_js_1736b3d1
+    db_connection_pool_64d0f859 -->|imports| routes_admin_js_652e9ea7
+    %% Omitted for readability: 30 nodes, 0 edges
+    class middleware_sessionauth_js_12c34051 module;
+    class middleware_sessionauth_crypto_6794e048 function;
+    class middleware_sessionauth_requireadmin_f4c44532 function;
+    class middleware_sessionauth_sessionauth_db794358 function;
+    class middleware_sessionauth_pool_9cb64a4e function;
+    class db_connection_js_6f3b5b68 module;
+    class db_connection_pool_64d0f859 function;
+    class db_connection_config_9fb2e8d7 function;
+    class db_connection_logger_3b0ec976 function;
+    class utils_validators_js_3b31ec21 module;
+    class utils_validators_searchschema_8573475d function;
+    class utils_validators_submiturlschema_65d36001 function;
+    class routes_admin_js_652e9ea7 module;
+    class routes_admin_express_9b379573 function;
+    class routes_agents_js_1736b3d1 module;
+    class routes_fichas_js_cdd56f6c module;
+    class routes_health_js_fc98c1ea module;
+    class routes_search_js_79fcf09d module;
+    classDef entry fill:#422006,stroke:#fbbf24,color:#fde68a,stroke-width:1px;
+    classDef api fill:#450a0a,stroke:#f87171,color:#fee2e2,stroke-width:1px;
+    classDef async fill:#2e1065,stroke:#a78bfa,color:#ede9fe,stroke-width:1px;
+    classDef klass fill:#064e3b,stroke:#34d399,color:#d1fae5,stroke-width:1px;
+    classDef ui fill:#831843,stroke:#f472b6,color:#fce7f3,stroke-width:1px;
+    classDef module fill:#172554,stroke:#60a5fa,color:#dbeafe,stroke-width:1px;
+    classDef test fill:#3f3f46,stroke:#a1a1aa,color:#f4f4f5,stroke-width:1px;
+    classDef concept fill:#292524,stroke:#a8a29e,color:#fafaf9,stroke-dasharray:4 3;
+    classDef function fill:#0f172a,stroke:#38bdf8,color:#e0f2fe,stroke-width:1px;
+</div>
+
+<h3>Call Details</h3>
+<table class="call-table">
+<tr>
+  <th style="width:5%">#</th>
+  <th style="width:28%">Node</th>
+  <th style="width:10%">Type</th>
+  <th style="width:17%">Caller</th>
+  <th style="width:20%">Callees</th>
+  <th style="width:20%">Description</th>
+</tr>
+<tr>
+  <td>1</td>
+  <td><code>sessionAuth.js</code><br><small style="color:var(--muted)">middleware/sessionAuth.js</small></td>
+  <td><span class="tag tag-class">Module</span></td>
+  <td>External entry / no inbound edge</td>
+  <td><code>connection.js</code><br><small style="color:var(--muted)">db/connection.js</small><br><code>{ Pool }</code><br><small style="color:var(--muted)">db/connection.js</small></td>
+  <td>sessionAuth.js node in middleware/sessionAuth.js.</td>
+</tr>
+<tr>
+  <td>2</td>
+  <td><code>crypto</code><br><small style="color:var(--muted)">middleware/sessionAuth.js</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>crypto node in middleware/sessionAuth.js.</td>
+</tr>
+<tr>
+  <td>3</td>
+  <td><code>{ pool }</code><br><small style="color:var(--muted)">middleware/sessionAuth.js</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>{ pool } node in middleware/sessionAuth.js.</td>
+</tr>
+<tr>
+  <td>4</td>
+  <td><code>sessionAuth()</code><br><small style="color:var(--muted)">middleware/sessionAuth.js</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>sessionAuth() node in middleware/sessionAuth.js.</td>
+</tr>
+<tr>
+  <td>5</td>
+  <td><code>requireAdmin()</code><br><small style="color:var(--muted)">middleware/sessionAuth.js</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>requireAdmin() node in middleware/sessionAuth.js.</td>
+</tr>
+<tr>
+  <td>6</td>
+  <td><code>connection.js</code><br><small style="color:var(--muted)">db/connection.js</small></td>
+  <td><span class="tag tag-class">Module</span></td>
+  <td><code>sessionAuth.js</code><br><small style="color:var(--muted)">middleware/sessionAuth.js</small></td>
+  <td><code>admin.js</code><br><small style="color:var(--muted)">routes/admin.js</small><br><code>agents.js</code><br><small style="color:var(--muted)">routes/agents.js</small><br><code>health.js</code><br><small style="color:var(--muted)">routes/health.js</small></td>
+  <td>connection.js node in db/connection.js.</td>
+</tr>
+<tr>
+  <td>7</td>
+  <td><code>{ Pool }</code><br><small style="color:var(--muted)">db/connection.js</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td><code>sessionAuth.js</code><br><small style="color:var(--muted)">middleware/sessionAuth.js</small></td>
+  <td><code>admin.js</code><br><small style="color:var(--muted)">routes/admin.js</small><br><code>agents.js</code><br><small style="color:var(--muted)">routes/agents.js</small><br><code>health.js</code><br><small style="color:var(--muted)">routes/health.js</small></td>
+  <td>{ Pool } node in db/connection.js.</td>
+</tr>
+<tr>
+  <td>8</td>
+  <td><code>config</code><br><small style="color:var(--muted)">db/connection.js</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>Reads, resolves, or persists project configuration.</td>
+</tr>
+<tr>
+  <td>9</td>
+  <td><code>logger</code><br><small style="color:var(--muted)">db/connection.js</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>logger node in db/connection.js.</td>
+</tr>
+<tr>
+  <td>10</td>
+  <td><code>health.js</code><br><small style="color:var(--muted)">routes/health.js</small></td>
+  <td><span class="tag tag-class">Module</span></td>
+  <td><code>connection.js</code><br><small style="color:var(--muted)">db/connection.js</small><br><code>{ Pool }</code><br><small style="color:var(--muted)">db/connection.js</small></td>
+  <td>No direct outbound edge</td>
+  <td>health.js node in routes/health.js.</td>
+</tr>
+<tr>
+  <td>11</td>
+  <td><code>{ Router }</code><br><small style="color:var(--muted)">routes/health.js</small></td>
+  <td><span class="tag tag-endpoint">API</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>{ Router } node in routes/health.js.</td>
+</tr>
+<tr>
+  <td>12</td>
+  <td><code>{ pool }</code><br><small style="color:var(--muted)">routes/health.js</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>{ pool } node in routes/health.js.</td>
+</tr>
+<tr>
+  <td>13</td>
+  <td><code>checks</code><br><small style="color:var(--muted)">routes/health.js</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>checks node in routes/health.js.</td>
+</tr>
+<tr>
+  <td>14</td>
+  <td><code>agents.js</code><br><small style="color:var(--muted)">routes/agents.js</small></td>
+  <td><span class="tag tag-class">Module</span></td>
+  <td><code>connection.js</code><br><small style="color:var(--muted)">db/connection.js</small><br><code>{ Pool }</code><br><small style="color:var(--muted)">db/connection.js</small></td>
+  <td>No direct outbound edge</td>
+  <td>agents.js node in routes/agents.js.</td>
+</tr>
+<tr>
+  <td>15</td>
+  <td><code>express</code><br><small style="color:var(--muted)">routes/agents.js</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>express node in routes/agents.js.</td>
+</tr>
+<tr>
+  <td>16</td>
+  <td><code>router</code><br><small style="color:var(--muted)">routes/agents.js</small></td>
+  <td><span class="tag tag-endpoint">API</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>router node in routes/agents.js.</td>
+</tr>
+<tr>
+  <td>17</td>
+  <td><code>{ v4: uuidv4 }</code><br><small style="color:var(--muted)">routes/agents.js</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>{ v4: uuidv4 } node in routes/agents.js.</td>
+</tr>
+<tr>
+  <td>18</td>
+  <td><code>{ pool }</code><br><small style="color:var(--muted)">routes/agents.js</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>{ pool } node in routes/agents.js.</td>
+</tr>
+<tr>
+  <td>19</td>
+  <td><code>logger</code><br><small style="color:var(--muted)">routes/agents.js</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>logger node in routes/agents.js.</td>
+</tr>
+<tr>
+  <td>20</td>
+  <td><code>admin.js</code><br><small style="color:var(--muted)">routes/admin.js</small></td>
+  <td><span class="tag tag-class">Module</span></td>
+  <td><code>connection.js</code><br><small style="color:var(--muted)">db/connection.js</small><br><code>{ Pool }</code><br><small style="color:var(--muted)">db/connection.js</small></td>
+  <td>No direct outbound edge</td>
+  <td>admin.js node in routes/admin.js.</td>
+</tr>
+<tr>
+  <td>21</td>
+  <td><code>express</code><br><small style="color:var(--muted)">routes/admin.js</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>express node in routes/admin.js.</td>
+</tr>
+<tr>
+  <td>22</td>
+  <td><code>{ pool }</code><br><small style="color:var(--muted)">routes/admin.js</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>{ pool } node in routes/admin.js.</td>
+</tr>
+<tr>
+  <td>23</td>
+  <td><code>logger</code><br><small style="color:var(--muted)">routes/admin.js</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>logger node in routes/admin.js.</td>
+</tr>
+<tr>
+  <td>24</td>
+  <td><code>router</code><br><small style="color:var(--muted)">routes/admin.js</small></td>
+  <td><span class="tag tag-endpoint">API</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>router node in routes/admin.js.</td>
+</tr>
+<tr>
+  <td>25</td>
+  <td><code>updates</code><br><small style="color:var(--muted)">routes/admin.js</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>updates node in routes/admin.js.</td>
+</tr>
+<tr>
+  <td>26</td>
+  <td><code>values</code><br><small style="color:var(--muted)">routes/admin.js</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>values node in routes/admin.js.</td>
+</tr>
+<tr>
+  <td>27</td>
+  <td><code>validators.js</code><br><small style="color:var(--muted)">utils/validators.js</small></td>
+  <td><span class="tag tag-class">Module</span></td>
+  <td>External entry / no inbound edge</td>
+  <td><code>fichas.js</code><br><small style="color:var(--muted)">routes/fichas.js</small><br><code>search.js</code><br><small style="color:var(--muted)">routes/search.js</small></td>
+  <td>validators.js node in utils/validators.js.</td>
+</tr>
+<tr>
+  <td>28</td>
+  <td><code>{ z }</code><br><small style="color:var(--muted)">utils/validators.js</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>{ z } node in utils/validators.js.</td>
+</tr>
+<tr>
+  <td>29</td>
+  <td><code>submitUrlSchema</code><br><small style="color:var(--muted)">utils/validators.js</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td>External entry / no inbound edge</td>
+  <td><code>fichas.js</code><br><small style="color:var(--muted)">routes/fichas.js</small></td>
+  <td>submitUrlSchema node in utils/validators.js.</td>
+</tr>
+<tr>
+  <td>30</td>
+  <td><code>searchSchema</code><br><small style="color:var(--muted)">utils/validators.js</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td>External entry / no inbound edge</td>
+  <td><code>search.js</code><br><small style="color:var(--muted)">routes/search.js</small></td>
+  <td>searchSchema node in utils/validators.js.</td>
+</tr>
+</table>
+
+<div class="grid">
+  <div class="card">
+    <h4>Key Files</h4>
+    <table style="width:100%;font-size:0.85rem;">
+      <tr><th>File</th><th>Coverage</th></tr>
+      <tr><td><code>routes/fichas.js</code></td><td>10 nodes</td></tr>
+<tr><td><code>routes/search.js</code></td><td>8 nodes</td></tr>
+<tr><td><code>routes/admin.js</code></td><td>7 nodes</td></tr>
+<tr><td><code>routes/agents.js</code></td><td>6 nodes</td></tr>
+<tr><td><code>middleware/sessionAuth.js</code></td><td>5 nodes</td></tr>
+<tr><td><code>db/connection.js</code></td><td>4 nodes</td></tr>
+<tr><td><code>routes/health.js</code></td><td>4 nodes</td></tr>
+<tr><td><code>utils/validators.js</code></td><td>4 nodes</td></tr>
+    </table>
+  </div>
+  <div class="card">
+    <h4>Design Notes</h4>
+    <p>This section comes from graphify community clustering. Relationship summary: contains x40, imports x6, imports x6. The diagram prioritizes high-confidence calls or usage relationships; the table keeps the broader node inventory.</p>
+  </div>
+</div>
+<hr>
+
+<!-- ====== 4. Indexjs Middleware Authjs ====== -->
+<h2 id="indexjs-middleware-authjs">4. Indexjs Middleware Authjs</h2>
+<p>Indexjs Middleware Authjs groups implementation around indexjs, middleware, authjs, errorhandlerjs, mostly in index.js, middleware/auth.js, middleware/errorHandler.js. This section covers 25 nodes and 27 internal edges; the diagram shows only representative relationships to stay readable.</p>
+
+<div class="mermaid">
+%%{init: {"theme": "dark", "themeVariables": {"fontSize": "15.0px", "fontFamily": "Segoe UI, system-ui, sans-serif", "primaryColor": "#1e293b", "primaryTextColor": "#e2e8f0", "primaryBorderColor": "#38bdf8", "secondaryColor": "#0f172a", "tertiaryColor": "#334155", "lineColor": "#64748b", "textColor": "#e2e8f0"}, "flowchart": {"htmlLabels": true, "curve": "basis", "nodeSpacing": 48, "rankSpacing": 64, "padding": 14, "diagramPadding": 10, "useMaxWidth": true}}}%%
+flowchart LR
+    %% Section: Indexjs Middleware Authjs (25 nodes, 27 edges)
+    subgraph indexjs_middleware_authjs_index_js_5156c22a["index.js"]
+        index_js_71daa22e("index.js")
+        src_index_start_e7cc6c41("start<br/><small>index.js</small>")
+        src_index_agentsrouter_fb61212d("agentsRouter<br/><small>index.js</small>")
+        src_index_airouter_45e8c5ee("aiRouter<br/><small>index.js</small>")
+        src_index_app_c760390f("app<br/><small>index.js</small>")
+        src_index_config_8f1f9ba7("config<br/><small>index.js</small>")
+        src_index_cors_415b38b9("cors<br/><small>index.js</small>")
+        src_index_express_d3dc5e89("express<br/><small>index.js</small>")
+        src_index_fichasrouter_3ae8c2cc("fichasRouter<br/><small>index.js</small>")
+        src_index_healthrouter_dfe5b3af("healthRouter<br/><small>index.js</small>")
+        src_index_helmet_4ed6b0de("helmet<br/><small>index.js</small>")
+        src_index_logger_d414c27e("logger<br/><small>index.js</small>")
+        src_index_path_e5dd38e2("path<br/><small>index.js</small>")
+    end
+    subgraph indexjs_middleware_authjs_middleware_auth_js_4eef661f["middleware/auth.js"]
+        middleware_auth_js_b93590fd("auth.js")
+        middleware_auth_apikeyauth_40ce9ae6("apiKeyAuth()<br/><small>middleware/auth.js</small>")
+    end
+    subgraph indexjs_middleware_authjs_middleware_errorHandle_15b4fc27["middleware/errorHandler.js"]
+        middleware_errorhandler_js_e709f724("errorHandler.js")
+        middleware_errorhandler_errorhandler_bd8ed9e7("errorHandler()<br/><small>middleware/errorHandler.js</small>")
+    end
+    db_connection_initdatabase_b60387a1("initDatabase()<br/><small>db/connection.js</small>")
+    src_index_start_e7cc6c41 -->|calls| db_connection_initdatabase_b60387a1
+    index_js_71daa22e -->|imports| db_connection_initdatabase_b60387a1
+    index_js_71daa22e -->|imports| middleware_auth_js_b93590fd
+    index_js_71daa22e -->|imports| middleware_auth_apikeyauth_40ce9ae6
+    index_js_71daa22e -->|imports| middleware_errorhandler_js_e709f724
+    index_js_71daa22e -->|imports| middleware_errorhandler_errorhandler_bd8ed9e7
+    %% Omitted for readability: 7 nodes, 0 edges
+    class index_js_71daa22e module;
+    class src_index_start_e7cc6c41 function;
+    class src_index_agentsrouter_fb61212d api;
+    class src_index_airouter_45e8c5ee api;
+    class src_index_app_c760390f function;
+    class src_index_config_8f1f9ba7 function;
+    class src_index_cors_415b38b9 function;
+    class src_index_express_d3dc5e89 function;
+    class src_index_fichasrouter_3ae8c2cc api;
+    class src_index_healthrouter_dfe5b3af api;
+    class src_index_helmet_4ed6b0de function;
+    class src_index_logger_d414c27e function;
+    class src_index_path_e5dd38e2 function;
+    class middleware_auth_js_b93590fd module;
+    class middleware_auth_apikeyauth_40ce9ae6 api;
+    class middleware_errorhandler_js_e709f724 module;
+    class middleware_errorhandler_errorhandler_bd8ed9e7 function;
+    class db_connection_initdatabase_b60387a1 function;
+    classDef entry fill:#422006,stroke:#fbbf24,color:#fde68a,stroke-width:1px;
+    classDef api fill:#450a0a,stroke:#f87171,color:#fee2e2,stroke-width:1px;
+    classDef async fill:#2e1065,stroke:#a78bfa,color:#ede9fe,stroke-width:1px;
+    classDef klass fill:#064e3b,stroke:#34d399,color:#d1fae5,stroke-width:1px;
+    classDef ui fill:#831843,stroke:#f472b6,color:#fce7f3,stroke-width:1px;
+    classDef module fill:#172554,stroke:#60a5fa,color:#dbeafe,stroke-width:1px;
+    classDef test fill:#3f3f46,stroke:#a1a1aa,color:#f4f4f5,stroke-width:1px;
+    classDef concept fill:#292524,stroke:#a8a29e,color:#fafaf9,stroke-dasharray:4 3;
+    classDef function fill:#0f172a,stroke:#38bdf8,color:#e0f2fe,stroke-width:1px;
+</div>
+
+<h3>Call Details</h3>
+<table class="call-table">
+<tr>
+  <th style="width:5%">#</th>
+  <th style="width:28%">Node</th>
+  <th style="width:10%">Type</th>
+  <th style="width:17%">Caller</th>
+  <th style="width:20%">Callees</th>
+  <th style="width:20%">Description</th>
+</tr>
+<tr>
+  <td>1</td>
+  <td><code>index.js</code><br><small style="color:var(--muted)">index.js</small></td>
+  <td><span class="tag tag-class">Module</span></td>
+  <td>External entry / no inbound edge</td>
+  <td><code>apiKeyAuth()</code><br><small style="color:var(--muted)">middleware/auth.js</small><br><code>auth.js</code><br><small style="color:var(--muted)">middleware/auth.js</small><br><code>errorHandler()</code><br><small style="color:var(--muted)">middleware/errorHandler.js</small><br>+2 more</td>
+  <td>index.js node in index.js.</td>
+</tr>
+<tr>
+  <td>2</td>
+  <td><code>express</code><br><small style="color:var(--muted)">index.js</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>express node in index.js.</td>
+</tr>
+<tr>
+  <td>3</td>
+  <td><code>cors</code><br><small style="color:var(--muted)">index.js</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>cors node in index.js.</td>
+</tr>
+<tr>
+  <td>4</td>
+  <td><code>helmet</code><br><small style="color:var(--muted)">index.js</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>helmet node in index.js.</td>
+</tr>
+<tr>
+  <td>5</td>
+  <td><code>path</code><br><small style="color:var(--muted)">index.js</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>path node in index.js.</td>
+</tr>
+<tr>
+  <td>6</td>
+  <td><code>config</code><br><small style="color:var(--muted)">index.js</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>Reads, resolves, or persists project configuration.</td>
+</tr>
+<tr>
+  <td>7</td>
+  <td><code>logger</code><br><small style="color:var(--muted)">index.js</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>logger node in index.js.</td>
+</tr>
+<tr>
+  <td>8</td>
+  <td><code>{ initDatabase }</code><br><small style="color:var(--muted)">index.js</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>{ initDatabase } node in index.js.</td>
+</tr>
+<tr>
+  <td>9</td>
+  <td><code>{ apiKeyAuth }</code><br><small style="color:var(--muted)">index.js</small></td>
+  <td><span class="tag tag-endpoint">API</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>{ apiKeyAuth } node in index.js.</td>
+</tr>
+<tr>
+  <td>10</td>
+  <td><code>{ errorHandler }</code><br><small style="color:var(--muted)">index.js</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>{ errorHandler } node in index.js.</td>
+</tr>
+<tr>
+  <td>11</td>
+  <td><code>fichasRouter</code><br><small style="color:var(--muted)">index.js</small></td>
+  <td><span class="tag tag-endpoint">API</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>fichasRouter node in index.js.</td>
+</tr>
+<tr>
+  <td>12</td>
+  <td><code>searchRouter</code><br><small style="color:var(--muted)">index.js</small></td>
+  <td><span class="tag tag-endpoint">API</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>searchRouter node in index.js.</td>
+</tr>
+<tr>
+  <td>13</td>
+  <td><code>healthRouter</code><br><small style="color:var(--muted)">index.js</small></td>
+  <td><span class="tag tag-endpoint">API</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>healthRouter node in index.js.</td>
+</tr>
+<tr>
+  <td>14</td>
+  <td><code>aiRouter</code><br><small style="color:var(--muted)">index.js</small></td>
+  <td><span class="tag tag-endpoint">API</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>aiRouter node in index.js.</td>
+</tr>
+<tr>
+  <td>15</td>
+  <td><code>projectsRouter</code><br><small style="color:var(--muted)">index.js</small></td>
+  <td><span class="tag tag-endpoint">API</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>projectsRouter node in index.js.</td>
+</tr>
+<tr>
+  <td>16</td>
+  <td><code>agentsRouter</code><br><small style="color:var(--muted)">index.js</small></td>
+  <td><span class="tag tag-endpoint">API</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>agentsRouter node in index.js.</td>
+</tr>
+<tr>
+  <td>17</td>
+  <td><code>app</code><br><small style="color:var(--muted)">index.js</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>app node in index.js.</td>
+</tr>
+<tr>
+  <td>18</td>
+  <td><code>start</code><br><small style="color:var(--muted)">index.js</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td>External entry / no inbound edge</td>
+  <td><code>initDatabase()</code><br><small style="color:var(--muted)">db/connection.js</small></td>
+  <td>start node in index.js.</td>
+</tr>
+<tr>
+  <td>19</td>
+  <td><code>auth.js</code><br><small style="color:var(--muted)">middleware/auth.js</small></td>
+  <td><span class="tag tag-class">Module</span></td>
+  <td><code>index.js</code><br><small style="color:var(--muted)">index.js</small></td>
+  <td>No direct outbound edge</td>
+  <td>auth.js node in middleware/auth.js.</td>
+</tr>
+<tr>
+  <td>20</td>
+  <td><code>config</code><br><small style="color:var(--muted)">middleware/auth.js</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>Reads, resolves, or persists project configuration.</td>
+</tr>
+<tr>
+  <td>21</td>
+  <td><code>apiKeyAuth()</code><br><small style="color:var(--muted)">middleware/auth.js</small></td>
+  <td><span class="tag tag-endpoint">API</span></td>
+  <td><code>index.js</code><br><small style="color:var(--muted)">index.js</small></td>
+  <td>No direct outbound edge</td>
+  <td>apiKeyAuth() node in middleware/auth.js.</td>
+</tr>
+<tr>
+  <td>22</td>
+  <td><code>errorHandler.js</code><br><small style="color:var(--muted)">middleware/errorHandler.js</small></td>
+  <td><span class="tag tag-class">Module</span></td>
+  <td><code>index.js</code><br><small style="color:var(--muted)">index.js</small></td>
+  <td>No direct outbound edge</td>
+  <td>errorHandler.js node in middleware/errorHandler.js.</td>
+</tr>
+<tr>
+  <td>23</td>
+  <td><code>logger</code><br><small style="color:var(--muted)">middleware/errorHandler.js</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>logger node in middleware/errorHandler.js.</td>
+</tr>
+<tr>
+  <td>24</td>
+  <td><code>errorHandler()</code><br><small style="color:var(--muted)">middleware/errorHandler.js</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td><code>index.js</code><br><small style="color:var(--muted)">index.js</small></td>
+  <td>No direct outbound edge</td>
+  <td>errorHandler() node in middleware/errorHandler.js.</td>
+</tr>
+<tr>
+  <td>25</td>
+  <td><code>initDatabase()</code><br><small style="color:var(--muted)">db/connection.js</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td><code>index.js</code><br><small style="color:var(--muted)">index.js</small><br><code>start</code><br><small style="color:var(--muted)">index.js</small></td>
+  <td>No direct outbound edge</td>
+  <td>initDatabase() node in db/connection.js.</td>
+</tr>
+</table>
+
+<div class="grid">
+  <div class="card">
+    <h4>Key Files</h4>
+    <table style="width:100%;font-size:0.85rem;">
+      <tr><th>File</th><th>Coverage</th></tr>
+      <tr><td><code>index.js</code></td><td>18 nodes</td></tr>
+<tr><td><code>middleware/auth.js</code></td><td>3 nodes</td></tr>
+<tr><td><code>middleware/errorHandler.js</code></td><td>3 nodes</td></tr>
+<tr><td><code>db/connection.js</code></td><td>1 nodes</td></tr>
+    </table>
+  </div>
+  <div class="card">
+    <h4>Design Notes</h4>
+    <p>This section comes from graphify community clustering. Relationship summary: contains x21, imports x3, imports x2, calls x1. The diagram prioritizes high-confidence calls or usage relationships; the table keeps the broader node inventory.</p>
+  </div>
+</div>
+<hr>
+
+<!-- ====== 5. Aijs Routes Loggerjs ====== -->
+<h2 id="aijs-routes-loggerjs">5. Aijs Routes Loggerjs</h2>
+<p>Aijs Routes Loggerjs groups implementation around aijs, routes, loggerjs, queriesjs, mostly in routes/ai.js, utils/logger.js, db/queries.js. This section covers 15 nodes and 15 internal edges; the diagram shows only representative relationships to stay readable.</p>
+
+<div class="mermaid">
+%%{init: {"theme": "dark", "themeVariables": {"fontSize": "15.0px", "fontFamily": "Segoe UI, system-ui, sans-serif", "primaryColor": "#1e293b", "primaryTextColor": "#e2e8f0", "primaryBorderColor": "#38bdf8", "secondaryColor": "#0f172a", "tertiaryColor": "#334155", "lineColor": "#64748b", "textColor": "#e2e8f0"}, "flowchart": {"htmlLabels": true, "curve": "basis", "nodeSpacing": 48, "rankSpacing": 64, "padding": 14, "diagramPadding": 10, "useMaxWidth": true}}}%%
+flowchart LR
+    %% Section: Aijs Routes Loggerjs (15 nodes, 15 edges)
+    subgraph aijs_routes_loggerjs_routes_ai_js_8f5d4349["routes/ai.js"]
+        routes_ai_js_6be891bb("ai.js")
+        routes_ai_express_7d1b5365("express<br/><small>routes/ai.js</small>")
+        routes_ai_logger_041bd955("logger<br/><small>routes/ai.js</small>")
+        routes_ai_newconfig_08dbcfb3("newConfig<br/><small>routes/ai.js</small>")
+        routes_ai_queries_3d8b6f81("queries<br/><small>routes/ai.js</small>")
+        routes_ai_router_dd812aea("router<br/><small>routes/ai.js</small>")
+        routes_ai_safeconfig_74e63a6f("safeConfig<br/><small>routes/ai.js</small>")
+    end
+    subgraph aijs_routes_loggerjs_db_queries_js_46b6918d["db/queries.js"]
+        db_queries_js_eb7d6036("queries.js")
+        db_queries_logger_046677d0("logger<br/><small>db/queries.js</small>")
+        db_queries_queries_35ea9389("queries<br/><small>db/queries.js</small>")
+        db_queries_pool_ed5d275e("pool<br/><small>db/queries.js</small>")
+    end
+    subgraph aijs_routes_loggerjs_utils_logger_js_ece9c598["utils/logger.js"]
+        utils_logger_js_9c6e8ba2("logger.js")
+        utils_logger_config_64720e5a("config<br/><small>utils/logger.js</small>")
+        utils_logger_logger_25718e4a("logger<br/><small>utils/logger.js</small>")
+        utils_logger_pino_041c58ff("pino<br/><small>utils/logger.js</small>")
+    end
+    utils_logger_js_9c6e8ba2 -->|imports| db_queries_js_eb7d6036
+    utils_logger_js_9c6e8ba2 -->|imports| routes_ai_js_6be891bb
+    db_queries_js_eb7d6036 -->|imports| routes_ai_js_6be891bb
+    class routes_ai_js_6be891bb module;
+    class routes_ai_express_7d1b5365 function;
+    class routes_ai_logger_041bd955 function;
+    class routes_ai_newconfig_08dbcfb3 function;
+    class routes_ai_queries_3d8b6f81 function;
+    class routes_ai_router_dd812aea api;
+    class routes_ai_safeconfig_74e63a6f function;
+    class db_queries_js_eb7d6036 module;
+    class db_queries_logger_046677d0 function;
+    class db_queries_queries_35ea9389 function;
+    class db_queries_pool_ed5d275e function;
+    class utils_logger_js_9c6e8ba2 module;
+    class utils_logger_config_64720e5a function;
+    class utils_logger_logger_25718e4a function;
+    class utils_logger_pino_041c58ff function;
+    classDef entry fill:#422006,stroke:#fbbf24,color:#fde68a,stroke-width:1px;
+    classDef api fill:#450a0a,stroke:#f87171,color:#fee2e2,stroke-width:1px;
+    classDef async fill:#2e1065,stroke:#a78bfa,color:#ede9fe,stroke-width:1px;
+    classDef klass fill:#064e3b,stroke:#34d399,color:#d1fae5,stroke-width:1px;
+    classDef ui fill:#831843,stroke:#f472b6,color:#fce7f3,stroke-width:1px;
+    classDef module fill:#172554,stroke:#60a5fa,color:#dbeafe,stroke-width:1px;
+    classDef test fill:#3f3f46,stroke:#a1a1aa,color:#f4f4f5,stroke-width:1px;
+    classDef concept fill:#292524,stroke:#a8a29e,color:#fafaf9,stroke-dasharray:4 3;
+    classDef function fill:#0f172a,stroke:#38bdf8,color:#e0f2fe,stroke-width:1px;
+</div>
+
+<h3>Call Details</h3>
+<table class="call-table">
+<tr>
+  <th style="width:5%">#</th>
+  <th style="width:28%">Node</th>
+  <th style="width:10%">Type</th>
+  <th style="width:17%">Caller</th>
+  <th style="width:20%">Callees</th>
+  <th style="width:20%">Description</th>
+</tr>
+<tr>
+  <td>1</td>
+  <td><code>logger.js</code><br><small style="color:var(--muted)">utils/logger.js</small></td>
+  <td><span class="tag tag-class">Module</span></td>
+  <td>External entry / no inbound edge</td>
+  <td><code>ai.js</code><br><small style="color:var(--muted)">routes/ai.js</small><br><code>queries.js</code><br><small style="color:var(--muted)">db/queries.js</small></td>
+  <td>logger.js node in utils/logger.js.</td>
+</tr>
+<tr>
+  <td>2</td>
+  <td><code>pino</code><br><small style="color:var(--muted)">utils/logger.js</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>pino node in utils/logger.js.</td>
+</tr>
+<tr>
+  <td>3</td>
+  <td><code>config</code><br><small style="color:var(--muted)">utils/logger.js</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>Reads, resolves, or persists project configuration.</td>
+</tr>
+<tr>
+  <td>4</td>
+  <td><code>logger</code><br><small style="color:var(--muted)">utils/logger.js</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>logger node in utils/logger.js.</td>
+</tr>
+<tr>
+  <td>5</td>
+  <td><code>queries.js</code><br><small style="color:var(--muted)">db/queries.js</small></td>
+  <td><span class="tag tag-class">Module</span></td>
+  <td><code>logger.js</code><br><small style="color:var(--muted)">utils/logger.js</small></td>
+  <td><code>ai.js</code><br><small style="color:var(--muted)">routes/ai.js</small></td>
+  <td>queries.js node in db/queries.js.</td>
+</tr>
+<tr>
+  <td>6</td>
+  <td><code>{ pool }</code><br><small style="color:var(--muted)">db/queries.js</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>{ pool } node in db/queries.js.</td>
+</tr>
+<tr>
+  <td>7</td>
+  <td><code>logger</code><br><small style="color:var(--muted)">db/queries.js</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>logger node in db/queries.js.</td>
+</tr>
+<tr>
+  <td>8</td>
+  <td><code>queries</code><br><small style="color:var(--muted)">db/queries.js</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>queries node in db/queries.js.</td>
+</tr>
+<tr>
+  <td>9</td>
+  <td><code>ai.js</code><br><small style="color:var(--muted)">routes/ai.js</small></td>
+  <td><span class="tag tag-class">Module</span></td>
+  <td><code>logger.js</code><br><small style="color:var(--muted)">utils/logger.js</small><br><code>queries.js</code><br><small style="color:var(--muted)">db/queries.js</small></td>
+  <td>No direct outbound edge</td>
+  <td>ai.js node in routes/ai.js.</td>
+</tr>
+<tr>
+  <td>10</td>
+  <td><code>express</code><br><small style="color:var(--muted)">routes/ai.js</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>express node in routes/ai.js.</td>
+</tr>
+<tr>
+  <td>11</td>
+  <td><code>router</code><br><small style="color:var(--muted)">routes/ai.js</small></td>
+  <td><span class="tag tag-endpoint">API</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>router node in routes/ai.js.</td>
+</tr>
+<tr>
+  <td>12</td>
+  <td><code>queries</code><br><small style="color:var(--muted)">routes/ai.js</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>queries node in routes/ai.js.</td>
+</tr>
+<tr>
+  <td>13</td>
+  <td><code>logger</code><br><small style="color:var(--muted)">routes/ai.js</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>logger node in routes/ai.js.</td>
+</tr>
+<tr>
+  <td>14</td>
+  <td><code>safeConfig</code><br><small style="color:var(--muted)">routes/ai.js</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>Reads, resolves, or persists project configuration.</td>
+</tr>
+<tr>
+  <td>15</td>
+  <td><code>newConfig</code><br><small style="color:var(--muted)">routes/ai.js</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>Reads, resolves, or persists project configuration.</td>
+</tr>
+</table>
+
+<div class="grid">
+  <div class="card">
+    <h4>Key Files</h4>
+    <table style="width:100%;font-size:0.85rem;">
+      <tr><th>File</th><th>Coverage</th></tr>
+      <tr><td><code>routes/ai.js</code></td><td>7 nodes</td></tr>
+<tr><td><code>db/queries.js</code></td><td>4 nodes</td></tr>
+<tr><td><code>utils/logger.js</code></td><td>4 nodes</td></tr>
+    </table>
+  </div>
+  <div class="card">
+    <h4>Design Notes</h4>
+    <p>This section comes from graphify community clustering. Relationship summary: contains x12, imports x3. The diagram prioritizes high-confidence calls or usage relationships; the table keeps the broader node inventory.</p>
+  </div>
+</div>
+<hr>
+
+<!-- ====== 6. Geminijs Services Configjs ====== -->
+<h2 id="geminijs-services-configjs">6. Geminijs Services Configjs</h2>
+<p>Geminijs Services Configjs groups implementation around geminijs, services, configjs, config, mostly in services/gemini.js, config.js. This section covers 14 nodes and 13 internal edges; the diagram shows only representative relationships to stay readable.</p>
+
+<div class="mermaid">
+%%{init: {"theme": "dark", "themeVariables": {"fontSize": "15.0px", "fontFamily": "Segoe UI, system-ui, sans-serif", "primaryColor": "#1e293b", "primaryTextColor": "#e2e8f0", "primaryBorderColor": "#38bdf8", "secondaryColor": "#0f172a", "tertiaryColor": "#334155", "lineColor": "#64748b", "textColor": "#e2e8f0"}, "flowchart": {"htmlLabels": true, "curve": "basis", "nodeSpacing": 48, "rankSpacing": 64, "padding": 14, "diagramPadding": 10, "useMaxWidth": true}}}%%
+flowchart LR
+    %% Section: Geminijs Services Configjs (14 nodes, 13 edges)
+    subgraph geminijs_services_configjs_services_gemini_js_edde25ff["services/gemini.js"]
+        services_gemini_geminiservice_4523e392("GeminiService<br/><small>services/gemini.js</small>")
+        services_gemini_geminiservice_constructor_15e413f3("constructor()<br/><small>services/gemini.js</small>")
+        services_gemini_geminiservice_complete_1b28e9d9("complete()<br/><small>services/gemini.js</small>")
+        services_gemini_geminiservice_generateembedding_d4698925("generateEmbedding()<br/><small>services/gemini.js</small>")
+        services_gemini_js_6d96ba66("gemini.js")
+        services_gemini_config_48b522f1("config<br/><small>services/gemini.js</small>")
+        services_gemini_db_2e689e25("db<br/><small>services/gemini.js</small>")
+        services_gemini_logger_0bb6f7d2("logger<br/><small>services/gemini.js</small>")
+        services_gemini_googlegenerativeai_ba50f37c("GoogleGenerativeAI<br/><small>services/gemini.js</small>")
+    end
+    subgraph geminijs_services_configjs_config_js_99e6ed15["config.js"]
+        config_js_fb956650("config.js")
+        src_config_config_bef496dc("config<br/><small>config.js</small>")
+        src_config_envschema_22ff5015("envSchema<br/><small>config.js</small>")
+        src_config_parsed_77939a64("parsed<br/><small>config.js</small>")
+        src_config_z_0bcc44aa("z<br/><small>config.js</small>")
+    end
+    services_gemini_geminiservice_4523e392 -->|method| services_gemini_geminiservice_constructor_15e413f3
+    services_gemini_geminiservice_4523e392 -->|method| services_gemini_geminiservice_complete_1b28e9d9
+    services_gemini_geminiservice_4523e392 -->|method| services_gemini_geminiservice_generateembedding_d4698925
+    config_js_fb956650 -->|imports| services_gemini_js_6d96ba66
+    class services_gemini_geminiservice_4523e392 klass;
+    class services_gemini_geminiservice_constructor_15e413f3 function;
+    class services_gemini_geminiservice_complete_1b28e9d9 function;
+    class services_gemini_geminiservice_generateembedding_d4698925 function;
+    class services_gemini_js_6d96ba66 module;
+    class services_gemini_config_48b522f1 function;
+    class services_gemini_db_2e689e25 function;
+    class services_gemini_logger_0bb6f7d2 function;
+    class services_gemini_googlegenerativeai_ba50f37c function;
+    class config_js_fb956650 module;
+    class src_config_config_bef496dc function;
+    class src_config_envschema_22ff5015 function;
+    class src_config_parsed_77939a64 function;
+    class src_config_z_0bcc44aa function;
+    classDef entry fill:#422006,stroke:#fbbf24,color:#fde68a,stroke-width:1px;
+    classDef api fill:#450a0a,stroke:#f87171,color:#fee2e2,stroke-width:1px;
+    classDef async fill:#2e1065,stroke:#a78bfa,color:#ede9fe,stroke-width:1px;
+    classDef klass fill:#064e3b,stroke:#34d399,color:#d1fae5,stroke-width:1px;
+    classDef ui fill:#831843,stroke:#f472b6,color:#fce7f3,stroke-width:1px;
+    classDef module fill:#172554,stroke:#60a5fa,color:#dbeafe,stroke-width:1px;
+    classDef test fill:#3f3f46,stroke:#a1a1aa,color:#f4f4f5,stroke-width:1px;
+    classDef concept fill:#292524,stroke:#a8a29e,color:#fafaf9,stroke-dasharray:4 3;
+    classDef function fill:#0f172a,stroke:#38bdf8,color:#e0f2fe,stroke-width:1px;
+</div>
+
+<h3>Call Details</h3>
+<table class="call-table">
+<tr>
+  <th style="width:5%">#</th>
+  <th style="width:28%">Node</th>
+  <th style="width:10%">Type</th>
+  <th style="width:17%">Caller</th>
+  <th style="width:20%">Callees</th>
+  <th style="width:20%">Description</th>
+</tr>
+<tr>
+  <td>1</td>
+  <td><code>config.js</code><br><small style="color:var(--muted)">config.js</small></td>
+  <td><span class="tag tag-class">Module</span></td>
+  <td>External entry / no inbound edge</td>
+  <td><code>gemini.js</code><br><small style="color:var(--muted)">services/gemini.js</small></td>
+  <td>Reads, resolves, or persists project configuration.</td>
+</tr>
+<tr>
+  <td>2</td>
+  <td><code>{ z }</code><br><small style="color:var(--muted)">config.js</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>{ z } node in config.js.</td>
+</tr>
+<tr>
+  <td>3</td>
+  <td><code>envSchema</code><br><small style="color:var(--muted)">config.js</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>envSchema node in config.js.</td>
+</tr>
+<tr>
+  <td>4</td>
+  <td><code>parsed</code><br><small style="color:var(--muted)">config.js</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>parsed node in config.js.</td>
+</tr>
+<tr>
+  <td>5</td>
+  <td><code>config</code><br><small style="color:var(--muted)">config.js</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>Reads, resolves, or persists project configuration.</td>
+</tr>
+<tr>
+  <td>6</td>
+  <td><code>gemini.js</code><br><small style="color:var(--muted)">services/gemini.js</small></td>
+  <td><span class="tag tag-class">Module</span></td>
+  <td><code>config.js</code><br><small style="color:var(--muted)">config.js</small></td>
+  <td>No direct outbound edge</td>
+  <td>gemini.js node in services/gemini.js.</td>
+</tr>
+<tr>
+  <td>7</td>
+  <td><code>{ GoogleGenerativeAI }</code><br><small style="color:var(--muted)">services/gemini.js</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>{ GoogleGenerativeAI } node in services/gemini.js.</td>
+</tr>
+<tr>
+  <td>8</td>
+  <td><code>config</code><br><small style="color:var(--muted)">services/gemini.js</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>Reads, resolves, or persists project configuration.</td>
+</tr>
+<tr>
+  <td>9</td>
+  <td><code>logger</code><br><small style="color:var(--muted)">services/gemini.js</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>logger node in services/gemini.js.</td>
+</tr>
+<tr>
+  <td>10</td>
+  <td><code>db</code><br><small style="color:var(--muted)">services/gemini.js</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>db node in services/gemini.js.</td>
+</tr>
+<tr>
+  <td>11</td>
+  <td><code>GeminiService</code><br><small style="color:var(--muted)">services/gemini.js</small></td>
+  <td><span class="tag tag-class">Class</span></td>
+  <td>External entry / no inbound edge</td>
+  <td><code>complete()</code><br><small style="color:var(--muted)">services/gemini.js</small><br><code>constructor()</code><br><small style="color:var(--muted)">services/gemini.js</small><br><code>generateEmbedding()</code><br><small style="color:var(--muted)">services/gemini.js</small></td>
+  <td>GeminiService node in services/gemini.js.</td>
+</tr>
+<tr>
+  <td>12</td>
+  <td><code>.constructor()</code><br><small style="color:var(--muted)">services/gemini.js</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td><code>GeminiService</code><br><small style="color:var(--muted)">services/gemini.js</small></td>
+  <td>No direct outbound edge</td>
+  <td>.constructor() node in services/gemini.js.</td>
+</tr>
+<tr>
+  <td>13</td>
+  <td><code>.complete()</code><br><small style="color:var(--muted)">services/gemini.js</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td><code>GeminiService</code><br><small style="color:var(--muted)">services/gemini.js</small></td>
+  <td>No direct outbound edge</td>
+  <td>.complete() node in services/gemini.js.</td>
+</tr>
+<tr>
+  <td>14</td>
+  <td><code>.generateEmbedding()</code><br><small style="color:var(--muted)">services/gemini.js</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td><code>GeminiService</code><br><small style="color:var(--muted)">services/gemini.js</small></td>
+  <td>No direct outbound edge</td>
+  <td>.generateEmbedding() node in services/gemini.js.</td>
+</tr>
+</table>
+
+<div class="grid">
+  <div class="card">
+    <h4>Key Files</h4>
+    <table style="width:100%;font-size:0.85rem;">
+      <tr><th>File</th><th>Coverage</th></tr>
+      <tr><td><code>services/gemini.js</code></td><td>9 nodes</td></tr>
+<tr><td><code>config.js</code></td><td>5 nodes</td></tr>
+    </table>
+  </div>
+  <div class="card">
+    <h4>Design Notes</h4>
+    <p>This section comes from graphify community clustering. Relationship summary: contains x9, method x3, imports x1. The diagram prioritizes high-confidence calls or usage relationships; the table keeps the broader node inventory.</p>
+  </div>
+</div>
+<hr>
+
+<!-- ====== 7. Authjs Routes Express ====== -->
+<h2 id="authjs-routes-express">7. Authjs Routes Express</h2>
+<p>Authjs Routes Express groups implementation around authjs, routes, express, crypto, mostly in routes/auth.js. This section covers 13 nodes and 12 internal edges; the diagram shows only representative relationships to stay readable.</p>
+
+<div class="mermaid">
+%%{init: {"theme": "dark", "themeVariables": {"fontSize": "15.0px", "fontFamily": "Segoe UI, system-ui, sans-serif", "primaryColor": "#1e293b", "primaryTextColor": "#e2e8f0", "primaryBorderColor": "#38bdf8", "secondaryColor": "#0f172a", "tertiaryColor": "#334155", "lineColor": "#64748b", "textColor": "#e2e8f0"}, "flowchart": {"htmlLabels": true, "curve": "basis", "nodeSpacing": 48, "rankSpacing": 64, "padding": 14, "diagramPadding": 10, "useMaxWidth": true}}}%%
+flowchart LR
+    %% Section: Authjs Routes Express (13 nodes, 12 edges)
+    routes_auth_js_6867eccb("auth.js")
+    routes_auth_express_642a9462("express<br/><small>routes/auth.js</small>")
+    routes_auth_crypto_996240ef("crypto<br/><small>routes/auth.js</small>")
+    routes_auth_pool_eb4860d6("pool<br/><small>routes/auth.js</small>")
+    routes_auth_logger_2971a3dd("logger<br/><small>routes/auth.js</small>")
+    routes_auth_router_ff4fb33a("router<br/><small>routes/auth.js</small>")
+    routes_auth_hashpassword_1c516b49("hashPassword()<br/><small>routes/auth.js</small>")
+    routes_auth_verifypassword_621f78ac("verifyPassword()<br/><small>routes/auth.js</small>")
+    routes_auth_generatetoken_2e5856d4("generateToken()<br/><small>routes/auth.js</small>")
+    routes_auth_id_597ba2d5("id<br/><small>routes/auth.js</small>")
+    routes_auth_passwordhash_4a6b5ae2("passwordHash<br/><small>routes/auth.js</small>")
+    routes_auth_token_513f51a4("token<br/><small>routes/auth.js</small>")
+    routes_auth_expiresat_b6d21a96("expiresAt<br/><small>routes/auth.js</small>")
+    routes_auth_js_6867eccb -->|contains| routes_auth_express_642a9462
+    routes_auth_js_6867eccb -->|contains| routes_auth_crypto_996240ef
+    routes_auth_js_6867eccb -->|contains| routes_auth_pool_eb4860d6
+    routes_auth_js_6867eccb -->|contains| routes_auth_logger_2971a3dd
+    routes_auth_js_6867eccb -->|contains| routes_auth_router_ff4fb33a
+    routes_auth_js_6867eccb -->|contains| routes_auth_hashpassword_1c516b49
+    routes_auth_js_6867eccb -->|contains| routes_auth_verifypassword_621f78ac
+    routes_auth_js_6867eccb -->|contains| routes_auth_generatetoken_2e5856d4
+    routes_auth_js_6867eccb -->|contains| routes_auth_id_597ba2d5
+    routes_auth_js_6867eccb -->|contains| routes_auth_passwordhash_4a6b5ae2
+    routes_auth_js_6867eccb -->|contains| routes_auth_token_513f51a4
+    routes_auth_js_6867eccb -->|contains| routes_auth_expiresat_b6d21a96
+    class routes_auth_js_6867eccb module;
+    class routes_auth_express_642a9462 function;
+    class routes_auth_crypto_996240ef function;
+    class routes_auth_pool_eb4860d6 function;
+    class routes_auth_logger_2971a3dd function;
+    class routes_auth_router_ff4fb33a api;
+    class routes_auth_hashpassword_1c516b49 function;
+    class routes_auth_verifypassword_621f78ac function;
+    class routes_auth_generatetoken_2e5856d4 function;
+    class routes_auth_id_597ba2d5 function;
+    class routes_auth_passwordhash_4a6b5ae2 function;
+    class routes_auth_token_513f51a4 function;
+    class routes_auth_expiresat_b6d21a96 function;
+    classDef entry fill:#422006,stroke:#fbbf24,color:#fde68a,stroke-width:1px;
+    classDef api fill:#450a0a,stroke:#f87171,color:#fee2e2,stroke-width:1px;
+    classDef async fill:#2e1065,stroke:#a78bfa,color:#ede9fe,stroke-width:1px;
+    classDef klass fill:#064e3b,stroke:#34d399,color:#d1fae5,stroke-width:1px;
+    classDef ui fill:#831843,stroke:#f472b6,color:#fce7f3,stroke-width:1px;
+    classDef module fill:#172554,stroke:#60a5fa,color:#dbeafe,stroke-width:1px;
+    classDef test fill:#3f3f46,stroke:#a1a1aa,color:#f4f4f5,stroke-width:1px;
+    classDef concept fill:#292524,stroke:#a8a29e,color:#fafaf9,stroke-dasharray:4 3;
+    classDef function fill:#0f172a,stroke:#38bdf8,color:#e0f2fe,stroke-width:1px;
+</div>
+
+<h3>Call Details</h3>
+<table class="call-table">
+<tr>
+  <th style="width:5%">#</th>
+  <th style="width:28%">Node</th>
+  <th style="width:10%">Type</th>
+  <th style="width:17%">Caller</th>
+  <th style="width:20%">Callees</th>
+  <th style="width:20%">Description</th>
+</tr>
+<tr>
+  <td>1</td>
+  <td><code>auth.js</code><br><small style="color:var(--muted)">routes/auth.js</small></td>
+  <td><span class="tag tag-class">Module</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>auth.js node in routes/auth.js.</td>
+</tr>
+<tr>
+  <td>2</td>
+  <td><code>express</code><br><small style="color:var(--muted)">routes/auth.js</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>express node in routes/auth.js.</td>
+</tr>
+<tr>
+  <td>3</td>
+  <td><code>crypto</code><br><small style="color:var(--muted)">routes/auth.js</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>crypto node in routes/auth.js.</td>
+</tr>
+<tr>
+  <td>4</td>
+  <td><code>{ pool }</code><br><small style="color:var(--muted)">routes/auth.js</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>{ pool } node in routes/auth.js.</td>
+</tr>
+<tr>
+  <td>5</td>
+  <td><code>logger</code><br><small style="color:var(--muted)">routes/auth.js</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>logger node in routes/auth.js.</td>
+</tr>
+<tr>
+  <td>6</td>
+  <td><code>router</code><br><small style="color:var(--muted)">routes/auth.js</small></td>
+  <td><span class="tag tag-endpoint">API</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>router node in routes/auth.js.</td>
+</tr>
+<tr>
+  <td>7</td>
+  <td><code>hashPassword()</code><br><small style="color:var(--muted)">routes/auth.js</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>Caches analysis results or computes cache keys.</td>
+</tr>
+<tr>
+  <td>8</td>
+  <td><code>verifyPassword()</code><br><small style="color:var(--muted)">routes/auth.js</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>verifyPassword() node in routes/auth.js.</td>
+</tr>
+<tr>
+  <td>9</td>
+  <td><code>generateToken()</code><br><small style="color:var(--muted)">routes/auth.js</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>generateToken() node in routes/auth.js.</td>
+</tr>
+<tr>
+  <td>10</td>
+  <td><code>id</code><br><small style="color:var(--muted)">routes/auth.js</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>id node in routes/auth.js.</td>
+</tr>
+<tr>
+  <td>11</td>
+  <td><code>passwordHash</code><br><small style="color:var(--muted)">routes/auth.js</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>Caches analysis results or computes cache keys.</td>
+</tr>
+<tr>
+  <td>12</td>
+  <td><code>token</code><br><small style="color:var(--muted)">routes/auth.js</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>token node in routes/auth.js.</td>
+</tr>
+<tr>
+  <td>13</td>
+  <td><code>expiresAt</code><br><small style="color:var(--muted)">routes/auth.js</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>expiresAt node in routes/auth.js.</td>
+</tr>
+</table>
+
+<div class="grid">
+  <div class="card">
+    <h4>Key Files</h4>
+    <table style="width:100%;font-size:0.85rem;">
+      <tr><th>File</th><th>Coverage</th></tr>
+      <tr><td><code>routes/auth.js</code></td><td>13 nodes</td></tr>
+    </table>
+  </div>
+  <div class="card">
+    <h4>Design Notes</h4>
+    <p>This section comes from graphify community clustering. Relationship summary: contains x12. The diagram prioritizes high-confidence calls or usage relationships; the table keeps the broader node inventory.</p>
+  </div>
+</div>
+<hr>
+
+<!-- ====== 8. Apikeysjs Routes Express ====== -->
+<h2 id="apikeysjs-routes-express">8. Apikeysjs Routes Express</h2>
+<p>Apikeysjs Routes Express groups implementation around apikeysjs, routes, express, crypto, mostly in routes/apiKeys.js. This section covers 11 nodes and 10 internal edges; the diagram shows only representative relationships to stay readable.</p>
+
+<div class="mermaid">
+%%{init: {"theme": "dark", "themeVariables": {"fontSize": "15.0px", "fontFamily": "Segoe UI, system-ui, sans-serif", "primaryColor": "#1e293b", "primaryTextColor": "#e2e8f0", "primaryBorderColor": "#38bdf8", "secondaryColor": "#0f172a", "tertiaryColor": "#334155", "lineColor": "#64748b", "textColor": "#e2e8f0"}, "flowchart": {"htmlLabels": true, "curve": "basis", "nodeSpacing": 48, "rankSpacing": 64, "padding": 14, "diagramPadding": 10, "useMaxWidth": true}}}%%
+flowchart LR
+    %% Section: Apikeysjs Routes Express (11 nodes, 10 edges)
+    routes_apikeys_js_32686e4a("apiKeys.js")
+    routes_apikeys_express_f10ce345("express<br/><small>routes/apiKeys.js</small>")
+    routes_apikeys_crypto_6a02e48c("crypto<br/><small>routes/apiKeys.js</small>")
+    routes_apikeys_pool_00eb8807("pool<br/><small>routes/apiKeys.js</small>")
+    routes_apikeys_logger_374bad20("logger<br/><small>routes/apiKeys.js</small>")
+    routes_apikeys_router_e3b289ed("router<br/><small>routes/apiKeys.js</small>")
+    routes_apikeys_generateapikey_2185b6a1("generateApiKey()<br/><small>routes/apiKeys.js</small>")
+    routes_apikeys_hashkey_c9344345("hashKey()<br/><small>routes/apiKeys.js</small>")
+    routes_apikeys_planlimits_1c3d2d13("planLimits<br/><small>routes/apiKeys.js</small>")
+    routes_apikeys_rawkey_ffcbe260("rawKey<br/><small>routes/apiKeys.js</small>")
+    routes_apikeys_keyhash_5a6de1e0("keyHash<br/><small>routes/apiKeys.js</small>")
+    routes_apikeys_js_32686e4a -->|contains| routes_apikeys_express_f10ce345
+    routes_apikeys_js_32686e4a -->|contains| routes_apikeys_crypto_6a02e48c
+    routes_apikeys_js_32686e4a -->|contains| routes_apikeys_pool_00eb8807
+    routes_apikeys_js_32686e4a -->|contains| routes_apikeys_logger_374bad20
+    routes_apikeys_js_32686e4a -->|contains| routes_apikeys_router_e3b289ed
+    routes_apikeys_js_32686e4a -->|contains| routes_apikeys_generateapikey_2185b6a1
+    routes_apikeys_js_32686e4a -->|contains| routes_apikeys_hashkey_c9344345
+    routes_apikeys_js_32686e4a -->|contains| routes_apikeys_planlimits_1c3d2d13
+    routes_apikeys_js_32686e4a -->|contains| routes_apikeys_rawkey_ffcbe260
+    routes_apikeys_js_32686e4a -->|contains| routes_apikeys_keyhash_5a6de1e0
+    class routes_apikeys_js_32686e4a api;
+    class routes_apikeys_express_f10ce345 function;
+    class routes_apikeys_crypto_6a02e48c function;
+    class routes_apikeys_pool_00eb8807 function;
+    class routes_apikeys_logger_374bad20 function;
+    class routes_apikeys_router_e3b289ed api;
+    class routes_apikeys_generateapikey_2185b6a1 api;
+    class routes_apikeys_hashkey_c9344345 function;
+    class routes_apikeys_planlimits_1c3d2d13 function;
+    class routes_apikeys_rawkey_ffcbe260 function;
+    class routes_apikeys_keyhash_5a6de1e0 function;
+    classDef entry fill:#422006,stroke:#fbbf24,color:#fde68a,stroke-width:1px;
+    classDef api fill:#450a0a,stroke:#f87171,color:#fee2e2,stroke-width:1px;
+    classDef async fill:#2e1065,stroke:#a78bfa,color:#ede9fe,stroke-width:1px;
+    classDef klass fill:#064e3b,stroke:#34d399,color:#d1fae5,stroke-width:1px;
+    classDef ui fill:#831843,stroke:#f472b6,color:#fce7f3,stroke-width:1px;
+    classDef module fill:#172554,stroke:#60a5fa,color:#dbeafe,stroke-width:1px;
+    classDef test fill:#3f3f46,stroke:#a1a1aa,color:#f4f4f5,stroke-width:1px;
+    classDef concept fill:#292524,stroke:#a8a29e,color:#fafaf9,stroke-dasharray:4 3;
+    classDef function fill:#0f172a,stroke:#38bdf8,color:#e0f2fe,stroke-width:1px;
+</div>
+
+<h3>Call Details</h3>
+<table class="call-table">
+<tr>
+  <th style="width:5%">#</th>
+  <th style="width:28%">Node</th>
+  <th style="width:10%">Type</th>
+  <th style="width:17%">Caller</th>
+  <th style="width:20%">Callees</th>
+  <th style="width:20%">Description</th>
+</tr>
+<tr>
+  <td>1</td>
+  <td><code>apiKeys.js</code><br><small style="color:var(--muted)">routes/apiKeys.js</small></td>
+  <td><span class="tag tag-endpoint">API</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>apiKeys.js node in routes/apiKeys.js.</td>
+</tr>
+<tr>
+  <td>2</td>
+  <td><code>express</code><br><small style="color:var(--muted)">routes/apiKeys.js</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>express node in routes/apiKeys.js.</td>
+</tr>
+<tr>
+  <td>3</td>
+  <td><code>crypto</code><br><small style="color:var(--muted)">routes/apiKeys.js</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>crypto node in routes/apiKeys.js.</td>
+</tr>
+<tr>
+  <td>4</td>
+  <td><code>{ pool }</code><br><small style="color:var(--muted)">routes/apiKeys.js</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>{ pool } node in routes/apiKeys.js.</td>
+</tr>
+<tr>
+  <td>5</td>
+  <td><code>logger</code><br><small style="color:var(--muted)">routes/apiKeys.js</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>logger node in routes/apiKeys.js.</td>
+</tr>
+<tr>
+  <td>6</td>
+  <td><code>router</code><br><small style="color:var(--muted)">routes/apiKeys.js</small></td>
+  <td><span class="tag tag-endpoint">API</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>router node in routes/apiKeys.js.</td>
+</tr>
+<tr>
+  <td>7</td>
+  <td><code>generateApiKey()</code><br><small style="color:var(--muted)">routes/apiKeys.js</small></td>
+  <td><span class="tag tag-endpoint">API</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>generateApiKey() node in routes/apiKeys.js.</td>
+</tr>
+<tr>
+  <td>8</td>
+  <td><code>hashKey()</code><br><small style="color:var(--muted)">routes/apiKeys.js</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>Caches analysis results or computes cache keys.</td>
+</tr>
+<tr>
+  <td>9</td>
+  <td><code>planLimits</code><br><small style="color:var(--muted)">routes/apiKeys.js</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>planLimits node in routes/apiKeys.js.</td>
+</tr>
+<tr>
+  <td>10</td>
+  <td><code>rawKey</code><br><small style="color:var(--muted)">routes/apiKeys.js</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>rawKey node in routes/apiKeys.js.</td>
+</tr>
+<tr>
+  <td>11</td>
+  <td><code>keyHash</code><br><small style="color:var(--muted)">routes/apiKeys.js</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>Caches analysis results or computes cache keys.</td>
+</tr>
+</table>
+
+<div class="grid">
+  <div class="card">
+    <h4>Key Files</h4>
+    <table style="width:100%;font-size:0.85rem;">
+      <tr><th>File</th><th>Coverage</th></tr>
+      <tr><td><code>routes/apiKeys.js</code></td><td>11 nodes</td></tr>
+    </table>
+  </div>
+  <div class="card">
+    <h4>Design Notes</h4>
+    <p>This section comes from graphify community clustering. Relationship summary: contains x10. The diagram prioritizes high-confidence calls or usage relationships; the table keeps the broader node inventory.</p>
+  </div>
+</div>
+<hr>
+
+<!-- ====== 9. Downloaderjs Services Exec ====== -->
+<h2 id="downloaderjs-services-exec">9. Downloaderjs Services Exec</h2>
+<p>Downloaderjs Services Exec groups implementation around downloaderjs, services, exec, promisify, mostly in services/downloader.js. This section covers 10 nodes and 11 internal edges; the diagram shows only representative relationships to stay readable.</p>
+
+<div class="mermaid">
+%%{init: {"theme": "dark", "themeVariables": {"fontSize": "15.0px", "fontFamily": "Segoe UI, system-ui, sans-serif", "primaryColor": "#1e293b", "primaryTextColor": "#e2e8f0", "primaryBorderColor": "#38bdf8", "secondaryColor": "#0f172a", "tertiaryColor": "#334155", "lineColor": "#64748b", "textColor": "#e2e8f0"}, "flowchart": {"htmlLabels": true, "curve": "basis", "nodeSpacing": 48, "rankSpacing": 64, "padding": 14, "diagramPadding": 10, "useMaxWidth": true}}}%%
+flowchart LR
+    %% Section: Downloaderjs Services Exec (10 nodes, 11 edges)
+    services_downloader_execasync_8d48d40f("execAsync<br/><small>services/downloader.js</small>")
+    services_downloader_extractvideoid_cf551344("extractVideoId()<br/><small>services/downloader.js</small>")
+    services_downloader_downloadandextract_1e8d5e3c("downloadAndExtract()<br/><small>services/downloader.js</small>")
+    services_downloader_js_8b33c17e("downloader.js")
+    services_downloader_fs_942b08da("fs<br/><small>services/downloader.js</small>")
+    services_downloader_logger_42ce8c27("logger<br/><small>services/downloader.js</small>")
+    services_downloader_os_133fe6f6("os<br/><small>services/downloader.js</small>")
+    services_downloader_path_77ac742e("path<br/><small>services/downloader.js</small>")
+    services_downloader_exec_f08670bf("exec<br/><small>services/downloader.js</small>")
+    services_downloader_promisify_480ebde9("promisify<br/><small>services/downloader.js</small>")
+    services_downloader_execasync_8d48d40f -->|calls| services_downloader_downloadandextract_1e8d5e3c
+    services_downloader_extractvideoid_cf551344 -->|calls| services_downloader_downloadandextract_1e8d5e3c
+    class services_downloader_execasync_8d48d40f async;
+    class services_downloader_extractvideoid_cf551344 function;
+    class services_downloader_downloadandextract_1e8d5e3c function;
+    class services_downloader_js_8b33c17e module;
+    class services_downloader_fs_942b08da function;
+    class services_downloader_logger_42ce8c27 function;
+    class services_downloader_os_133fe6f6 function;
+    class services_downloader_path_77ac742e function;
+    class services_downloader_exec_f08670bf function;
+    class services_downloader_promisify_480ebde9 function;
+    classDef entry fill:#422006,stroke:#fbbf24,color:#fde68a,stroke-width:1px;
+    classDef api fill:#450a0a,stroke:#f87171,color:#fee2e2,stroke-width:1px;
+    classDef async fill:#2e1065,stroke:#a78bfa,color:#ede9fe,stroke-width:1px;
+    classDef klass fill:#064e3b,stroke:#34d399,color:#d1fae5,stroke-width:1px;
+    classDef ui fill:#831843,stroke:#f472b6,color:#fce7f3,stroke-width:1px;
+    classDef module fill:#172554,stroke:#60a5fa,color:#dbeafe,stroke-width:1px;
+    classDef test fill:#3f3f46,stroke:#a1a1aa,color:#f4f4f5,stroke-width:1px;
+    classDef concept fill:#292524,stroke:#a8a29e,color:#fafaf9,stroke-dasharray:4 3;
+    classDef function fill:#0f172a,stroke:#38bdf8,color:#e0f2fe,stroke-width:1px;
+</div>
+
+<h3>Call Details</h3>
+<table class="call-table">
+<tr>
+  <th style="width:5%">#</th>
+  <th style="width:28%">Node</th>
+  <th style="width:10%">Type</th>
+  <th style="width:17%">Caller</th>
+  <th style="width:20%">Callees</th>
+  <th style="width:20%">Description</th>
+</tr>
+<tr>
+  <td>1</td>
+  <td><code>downloader.js</code><br><small style="color:var(--muted)">services/downloader.js</small></td>
+  <td><span class="tag tag-class">Module</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>downloader.js node in services/downloader.js.</td>
+</tr>
+<tr>
+  <td>2</td>
+  <td><code>{ exec }</code><br><small style="color:var(--muted)">services/downloader.js</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>{ exec } node in services/downloader.js.</td>
+</tr>
+<tr>
+  <td>3</td>
+  <td><code>{ promisify }</code><br><small style="color:var(--muted)">services/downloader.js</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>{ promisify } node in services/downloader.js.</td>
+</tr>
+<tr>
+  <td>4</td>
+  <td><code>fs</code><br><small style="color:var(--muted)">services/downloader.js</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>fs node in services/downloader.js.</td>
+</tr>
+<tr>
+  <td>5</td>
+  <td><code>path</code><br><small style="color:var(--muted)">services/downloader.js</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>path node in services/downloader.js.</td>
+</tr>
+<tr>
+  <td>6</td>
+  <td><code>os</code><br><small style="color:var(--muted)">services/downloader.js</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>os node in services/downloader.js.</td>
+</tr>
+<tr>
+  <td>7</td>
+  <td><code>logger</code><br><small style="color:var(--muted)">services/downloader.js</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>logger node in services/downloader.js.</td>
+</tr>
+<tr>
+  <td>8</td>
+  <td><code>execAsync</code><br><small style="color:var(--muted)">services/downloader.js</small></td>
+  <td><span class="tag tag-async">Async</span></td>
+  <td>External entry / no inbound edge</td>
+  <td><code>downloadAndExtract()</code><br><small style="color:var(--muted)">services/downloader.js</small></td>
+  <td>execAsync node in services/downloader.js.</td>
+</tr>
+<tr>
+  <td>9</td>
+  <td><code>extractVideoId()</code><br><small style="color:var(--muted)">services/downloader.js</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td>External entry / no inbound edge</td>
+  <td><code>downloadAndExtract()</code><br><small style="color:var(--muted)">services/downloader.js</small></td>
+  <td>extractVideoId() node in services/downloader.js.</td>
+</tr>
+<tr>
+  <td>10</td>
+  <td><code>downloadAndExtract()</code><br><small style="color:var(--muted)">services/downloader.js</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td><code>execAsync</code><br><small style="color:var(--muted)">services/downloader.js</small><br><code>extractVideoId()</code><br><small style="color:var(--muted)">services/downloader.js</small></td>
+  <td>No direct outbound edge</td>
+  <td>downloadAndExtract() node in services/downloader.js.</td>
+</tr>
+</table>
+
+<div class="grid">
+  <div class="card">
+    <h4>Key Files</h4>
+    <table style="width:100%;font-size:0.85rem;">
+      <tr><th>File</th><th>Coverage</th></tr>
+      <tr><td><code>services/downloader.js</code></td><td>10 nodes</td></tr>
+    </table>
+  </div>
+  <div class="card">
+    <h4>Design Notes</h4>
+    <p>This section comes from graphify community clustering. Relationship summary: contains x9, calls x2. The diagram prioritizes high-confidence calls or usage relationships; the table keeps the broader node inventory.</p>
+  </div>
+</div>
+<hr>
+
+<!-- ====== 10. Projectsjs Routes Express ====== -->
+<h2 id="projectsjs-routes-express">10. Projectsjs Routes Express</h2>
+<p>Projectsjs Routes Express groups implementation around projectsjs, routes, express, router, mostly in routes/projects.js. This section covers 7 nodes and 6 internal edges; the diagram shows only representative relationships to stay readable.</p>
+
+<div class="mermaid">
+%%{init: {"theme": "dark", "themeVariables": {"fontSize": "15.0px", "fontFamily": "Segoe UI, system-ui, sans-serif", "primaryColor": "#1e293b", "primaryTextColor": "#e2e8f0", "primaryBorderColor": "#38bdf8", "secondaryColor": "#0f172a", "tertiaryColor": "#334155", "lineColor": "#64748b", "textColor": "#e2e8f0"}, "flowchart": {"htmlLabels": true, "curve": "basis", "nodeSpacing": 48, "rankSpacing": 64, "padding": 14, "diagramPadding": 10, "useMaxWidth": true}}}%%
+flowchart LR
+    %% Section: Projectsjs Routes Express (7 nodes, 6 edges)
+    routes_projects_js_3e42e5b6("projects.js")
+    routes_projects_express_f5fae24c("express<br/><small>routes/projects.js</small>")
+    routes_projects_router_65fb1ceb("router<br/><small>routes/projects.js</small>")
+    routes_projects_v4_uuidv4_59b1c34e("v4: uuidv4<br/><small>routes/projects.js</small>")
+    routes_projects_pool_024110c8("pool<br/><small>routes/projects.js</small>")
+    routes_projects_logger_8d7c3fb6("logger<br/><small>routes/projects.js</small>")
+    routes_projects_id_9aca2916("id<br/><small>routes/projects.js</small>")
+    routes_projects_js_3e42e5b6 -->|contains| routes_projects_express_f5fae24c
+    routes_projects_js_3e42e5b6 -->|contains| routes_projects_router_65fb1ceb
+    routes_projects_js_3e42e5b6 -->|contains| routes_projects_v4_uuidv4_59b1c34e
+    routes_projects_js_3e42e5b6 -->|contains| routes_projects_pool_024110c8
+    routes_projects_js_3e42e5b6 -->|contains| routes_projects_logger_8d7c3fb6
+    routes_projects_js_3e42e5b6 -->|contains| routes_projects_id_9aca2916
+    class routes_projects_js_3e42e5b6 module;
+    class routes_projects_express_f5fae24c function;
+    class routes_projects_router_65fb1ceb api;
+    class routes_projects_v4_uuidv4_59b1c34e function;
+    class routes_projects_pool_024110c8 function;
+    class routes_projects_logger_8d7c3fb6 function;
+    class routes_projects_id_9aca2916 function;
+    classDef entry fill:#422006,stroke:#fbbf24,color:#fde68a,stroke-width:1px;
+    classDef api fill:#450a0a,stroke:#f87171,color:#fee2e2,stroke-width:1px;
+    classDef async fill:#2e1065,stroke:#a78bfa,color:#ede9fe,stroke-width:1px;
+    classDef klass fill:#064e3b,stroke:#34d399,color:#d1fae5,stroke-width:1px;
+    classDef ui fill:#831843,stroke:#f472b6,color:#fce7f3,stroke-width:1px;
+    classDef module fill:#172554,stroke:#60a5fa,color:#dbeafe,stroke-width:1px;
+    classDef test fill:#3f3f46,stroke:#a1a1aa,color:#f4f4f5,stroke-width:1px;
+    classDef concept fill:#292524,stroke:#a8a29e,color:#fafaf9,stroke-dasharray:4 3;
+    classDef function fill:#0f172a,stroke:#38bdf8,color:#e0f2fe,stroke-width:1px;
+</div>
+
+<h3>Call Details</h3>
+<table class="call-table">
+<tr>
+  <th style="width:5%">#</th>
+  <th style="width:28%">Node</th>
+  <th style="width:10%">Type</th>
+  <th style="width:17%">Caller</th>
+  <th style="width:20%">Callees</th>
+  <th style="width:20%">Description</th>
+</tr>
+<tr>
+  <td>1</td>
+  <td><code>projects.js</code><br><small style="color:var(--muted)">routes/projects.js</small></td>
+  <td><span class="tag tag-class">Module</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>projects.js node in routes/projects.js.</td>
+</tr>
+<tr>
+  <td>2</td>
+  <td><code>express</code><br><small style="color:var(--muted)">routes/projects.js</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>express node in routes/projects.js.</td>
+</tr>
+<tr>
+  <td>3</td>
+  <td><code>router</code><br><small style="color:var(--muted)">routes/projects.js</small></td>
+  <td><span class="tag tag-endpoint">API</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>router node in routes/projects.js.</td>
+</tr>
+<tr>
+  <td>4</td>
+  <td><code>{ v4: uuidv4 }</code><br><small style="color:var(--muted)">routes/projects.js</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>{ v4: uuidv4 } node in routes/projects.js.</td>
+</tr>
+<tr>
+  <td>5</td>
+  <td><code>{ pool }</code><br><small style="color:var(--muted)">routes/projects.js</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>{ pool } node in routes/projects.js.</td>
+</tr>
+<tr>
+  <td>6</td>
+  <td><code>logger</code><br><small style="color:var(--muted)">routes/projects.js</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>logger node in routes/projects.js.</td>
+</tr>
+<tr>
+  <td>7</td>
+  <td><code>id</code><br><small style="color:var(--muted)">routes/projects.js</small></td>
+  <td><span class="tag tag-func">Function</span></td>
+  <td>External entry / no inbound edge</td>
+  <td>No direct outbound edge</td>
+  <td>id node in routes/projects.js.</td>
+</tr>
+</table>
+
+<div class="grid">
+  <div class="card">
+    <h4>Key Files</h4>
+    <table style="width:100%;font-size:0.85rem;">
+      <tr><th>File</th><th>Coverage</th></tr>
+      <tr><td><code>routes/projects.js</code></td><td>7 nodes</td></tr>
+    </table>
+  </div>
+  <div class="card">
+    <h4>Design Notes</h4>
+    <p>This section comes from graphify community clustering. Relationship summary: contains x6. The diagram prioritizes high-confidence calls or usage relationships; the table keeps the broader node inventory.</p>
+  </div>
+</div>
+<hr>
+
+<h2 id="stats">Project Statistics</h2>
+
+<div class="grid">
+  <div class="card">
+    <h4>Graph</h4>
+    <table style="width:100%;font-size:0.85rem;">
+      <tr><td>Nodes</td><td>169</td></tr>
+      <tr><td>Edges</td><td>229</td></tr>
+      <tr><td>Hyperedges</td><td>0</td></tr>
+      <tr><td>Communities</td><td>10</td></tr>
+      <tr><td>Documented Sections</td><td>9</td></tr>
+    </table>
+  </div>
+  <div class="card">
+    <h4>Edge Confidence</h4>
+    <table style="width:100%;font-size:0.85rem;">
+      <tr><td>EXTRACTED</td><td>229</td></tr>
+      <tr><td>INFERRED</td><td>0</td></tr>
+      <tr><td>AMBIGUOUS</td><td>0</td></tr>
+    </table>
+  </div>
+</div>
+
+<div style="text-align:center; padding:40px 0; color: var(--muted); font-size:0.9rem;">
+  <p>server — Architecture Documentation</p>
+  <p>Generated: 2026-05-12 09:47 UTC · graphify callflow-html</p>
+</div>
+
+</div><!-- .container -->
+
+<script>
+(function () {
+  const mermaidConfig = {
+    startOnLoad: false,
+    theme: 'dark',
+    securityLevel: 'loose',
+    flowchart: { htmlLabels: true, useMaxWidth: true },
+    themeVariables: {
+      primaryColor: '#1e293b',
+      primaryTextColor: '#e2e8f0',
+      primaryBorderColor: '#38bdf8',
+      secondaryColor: '#0f172a',
+      tertiaryColor: '#334155',
+      lineColor: '#64748b',
+      textColor: '#e2e8f0',
+    }
+  };
+
+  mermaid.initialize(mermaidConfig);
+
+  function clamp(value, min, max) {
+    return Math.min(max, Math.max(min, value));
+  }
+
+  function enhanceMermaidDiagrams() {
+    document.querySelectorAll('.mermaid').forEach((container) => {
+      if (container.dataset.zoomReady === 'true') return;
+      const svg = container.querySelector('svg');
+      if (!svg) return;
+
+      container.dataset.zoomReady = 'true';
+      container.classList.add('is-enhanced');
+
+      const viewport = document.createElement('div');
+      viewport.className = 'mermaid-viewport';
+      svg.parentNode.insertBefore(viewport, svg);
+      viewport.appendChild(svg);
+
+      const toolbar = document.createElement('div');
+      toolbar.className = 'mermaid-toolbar';
+      toolbar.innerHTML = [
+        '<button type="button" data-action="zoom-out" title="Zoom out">-</button>',
+        '<span class="zoom-level" data-role="level">100%</span>',
+        '<button type="button" data-action="zoom-in" title="Zoom in">+</button>',
+        '<button type="button" data-action="fit" title="Fit width">Fit</button>',
+        '<button type="button" data-action="reset" title="Reset view">Reset</button>'
+      ].join('');
+      container.insertBefore(toolbar, viewport);
+
+      const state = { scale: 1, x: 0, y: 0, dragging: false, startX: 0, startY: 0, originX: 0, originY: 0 };
+      const level = toolbar.querySelector('[data-role="level"]');
+
+      function applyTransform() {
+        svg.style.transform = `translate(${state.x}px, ${state.y}px) scale(${state.scale})`;
+        level.textContent = `${Math.round(state.scale * 100)}%`;
+      }
+
+      function zoomBy(delta) {
+        state.scale = clamp(state.scale + delta, 0.25, 3);
+        applyTransform();
+      }
+
+      function reset() {
+        state.scale = 1;
+        state.x = 0;
+        state.y = 0;
+        applyTransform();
+      }
+
+      function fitWidth() {
+        const rawWidth = svg.viewBox && svg.viewBox.baseVal && svg.viewBox.baseVal.width
+          ? svg.viewBox.baseVal.width
+          : svg.getBoundingClientRect().width / state.scale;
+        if (!rawWidth) {
+          reset();
+          return;
+        }
+        state.scale = clamp((viewport.clientWidth - 48) / rawWidth, 0.25, 1.4);
+        state.x = 0;
+        state.y = 0;
+        applyTransform();
+      }
+
+      toolbar.addEventListener('click', (event) => {
+        const button = event.target.closest('button[data-action]');
+        if (!button) return;
+        const action = button.dataset.action;
+        if (action === 'zoom-in') zoomBy(0.15);
+        if (action === 'zoom-out') zoomBy(-0.15);
+        if (action === 'fit') fitWidth();
+        if (action === 'reset') reset();
+      });
+
+      viewport.addEventListener('wheel', (event) => {
+        if (!event.ctrlKey && !event.metaKey) return;
+        event.preventDefault();
+        zoomBy(event.deltaY < 0 ? 0.1 : -0.1);
+      }, { passive: false });
+
+      viewport.addEventListener('pointerdown', (event) => {
+        if (event.button !== 0) return;
+        state.dragging = true;
+        state.startX = event.clientX;
+        state.startY = event.clientY;
+        state.originX = state.x;
+        state.originY = state.y;
+        viewport.classList.add('is-dragging');
+        viewport.setPointerCapture(event.pointerId);
+      });
+
+      viewport.addEventListener('pointermove', (event) => {
+        if (!state.dragging) return;
+        state.x = state.originX + event.clientX - state.startX;
+        state.y = state.originY + event.clientY - state.startY;
+        applyTransform();
+      });
+
+      function endDrag(event) {
+        if (!state.dragging) return;
+        state.dragging = false;
+        viewport.classList.remove('is-dragging');
+        if (viewport.hasPointerCapture(event.pointerId)) {
+          viewport.releasePointerCapture(event.pointerId);
+        }
+      }
+
+      viewport.addEventListener('pointerup', endDrag);
+      viewport.addEventListener('pointercancel', endDrag);
+      applyTransform();
+    });
+  }
+
+  function renderMermaid() {
+    const result = mermaid.run
+      ? mermaid.run({ querySelector: '.mermaid' })
+      : Promise.resolve();
+    Promise.resolve(result)
+      .then(enhanceMermaidDiagrams)
+      .catch((error) => {
+        console.error('Mermaid render failed:', error);
+        enhanceMermaidDiagrams();
+      });
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', renderMermaid);
+  } else {
+    renderMermaid();
+  }
+})();
+</script>
+
+</body>
+</html>

@@ -40,6 +40,14 @@ export default function Sidebar({ currentPage, onNavigate }) {
         AI Hub
       </button>
 
+      <button
+        className={`nav-item ${currentPage === 'graphify' ? 'active' : ''}`}
+        onClick={() => onNavigate('graphify')}
+      >
+        <span className="nav-icon">⚡</span>
+        Graphify
+      </button>
+
       <div style={{ flex: 1 }} />
 
       <div style={{ padding: '12px', fontSize: '11px', color: 'var(--text-muted)' }}>

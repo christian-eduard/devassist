@@ -15,6 +15,7 @@ const healthRouter = require('./routes/health');
 const aiRouter = require('./routes/ai');
 const projectsRouter = require('./routes/projects');
 const agentsRouter = require('./routes/agents');
+const graphifyRouter = require('./routes/graphify');
 
 const app = express();
 
@@ -47,6 +48,7 @@ app.use('/api/search', apiKeyAuth, searchRouter);        // Protected
 app.use('/api/ai', apiKeyAuth, aiRouter);                // Protected
 app.use('/api/projects', apiKeyAuth, projectsRouter);    // Protected
 app.use('/api/agents', apiKeyAuth, agentsRouter);        // Protected
+app.use('/api/graphify', apiKeyAuth, graphifyRouter);    // Protected
 
 // ── Error Handler ──
 app.use(errorHandler);
