@@ -20,11 +20,14 @@ const graphifyRouter = require('./routes/graphify');
 const app = express();
 
 // ── Global Middleware ──
-app.use(helmet());
+app.use(helmet({
+    contentSecurityPolicy: false,  // Disabled: Graphify HTMLs use inline scripts + CDN
+    crossOriginEmbedderPolicy: false,
+}));
 app.use(cors({ origin: config.isDev ? '*' : ['https://noahpro.studio', 'https://www.noahpro.studio', 'https://api.noahpro.studio'] }));
 app.use(express.json({ limit: '10mb' }));
 
-// Serve uploaded videos as static files
+// Serve uploaded files (videos + graphify reports) as static files
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 
 // Request logging
