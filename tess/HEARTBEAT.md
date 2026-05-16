@@ -78,10 +78,18 @@ Envía la URL a DevAssist añadiendo el prefijo `http://openclaw-tess:8080`.
 2. Usa `exec` para hacer el curl:
 
 ```bash
+jq -n \
+  --arg action "add-idea" \
+  --arg projectName "PROYECTO" \
+  --arg title "TITULO" \
+  --arg content "DESC" \
+  --arg author "NOMBRE" \
+  --arg image_base64 "$(base64 -w 0 /root/.openclaw/media/inbound/ARCHIVO.jpg)" \
+  '{action: $action, projectName: $projectName, title: $title, content: $content, author: $author, image_base64: $image_base64}' | \
 curl -s -X POST https://api.noahpro.studio/api/projects/tess-action \
--H "Content-Type: application/json" \
--H "x-api-key: devassist_prod_api_key_8Hj3kL9mQr5" \
--d '{"action": "add-idea", "projectName": "PROYECTO", "title": "TITULO", "content": "DESC", "author": "NOMBRE", "image_url": "http://openclaw-tess:8080/ARCHIVO.jpg"}'
+  -H "Content-Type: application/json" \
+  -H "x-api-key: devassist_prod_api_key_8Hj3kL9mQr5" \
+  -d @-
 ```
 
 3. Confirma: "Nota guardada en PROYECTO con análisis + variaciones Nano Banana 🍌✅"
