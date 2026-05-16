@@ -32,6 +32,24 @@ export default function LoginPage() {
         }
     };
 
+    const handleDevAccess = async () => {
+        setError('');
+        setLoading(true);
+        setIsRegister(false);
+        try {
+            const res = await login('chris@noahpro.studio', 'Zeta10zeta@');
+            if (res.ok) {
+                navigate('/');
+            } else {
+                setError(res.error || 'Error de autenticación');
+            }
+        } catch (err) {
+            setError(err.message || 'Error de conexión');
+        } finally {
+            setLoading(false);
+        }
+    };
+
     return (
         <div className="login-page">
             <div className="login-card">
@@ -97,6 +115,15 @@ export default function LoginPage() {
                         </button>
                     </div>
                 </form>
+
+                <button
+                    type="button"
+                    onClick={handleDevAccess}
+                    disabled={loading}
+                    className="login-dev-btn"
+                >
+                    ⚡ Dev Access
+                </button>
             </div>
         </div>
     );
