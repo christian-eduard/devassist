@@ -97,7 +97,6 @@ a:hover { color: var(--accent-secondary); }
   flex: 1;
   margin-left: 260px;
   padding: 32px;
-  max-width: 1200px;
 }
 
 /* Page Header */
