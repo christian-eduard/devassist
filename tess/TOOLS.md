@@ -82,13 +82,13 @@ Cuando Chris o Iván te envien un enlace (TikTok, YouTube, Instagram, Reels, Vim
 2. Lanza un sub-agente con sessions_spawn (LABEL ÚNICO por video):
 
 sessions_spawn({
-  task: "Procesa este video en DevAssist. Pasos: 1) Envia POST a https://api.noahpro.studio/api/fichas con headers Content-Type:application/json y x-api-key:devassist_prod_api_key_8Hj3kL9mQr5, body: {url:URL_DEL_VIDEO, channel:whatsapp}. 2) Espera 60s y comprueba GET /api/fichas/jobs/JOBID con el mismo x-api-key. 3) Si processing, espera 30s mas y reintenta hasta 5 veces. 4) Si completed, consulta GET /api/fichas/FICHAID y devuelve: titulo, autor, tl_dr, key_points (max 3), y 2-3 propuestas concretas de como Chris puede aprovechar este contenido para sus negocios (Pronexus, INSECE, BestKids). 5) Incluye el enlace: https://noahpro.studio para ver la ficha completa con el video.",
+  task: "Ejecuta este comando y devuelve el resultado completo: bash /root/.openclaw/scripts/process-video.sh 'URL_DEL_VIDEO'",
   label: "video-MMDD-HHMM",
   context: "isolated",
   runTimeoutSeconds: 300
 })
 
-IMPORTANTE: Reemplaza MMDD-HHMM con la fecha y hora actual (ej: "video-0516-0530"). Así cada video tiene un label único.
+IMPORTANTE: Reemplaza MMDD-HHMM con la fecha y hora actual (ej: "video-0516-0530"). Reemplaza URL_DEL_VIDEO con la URL exacta. Así cada video tiene un label único.
 
 3. Sigue disponible para Chris mientras el sub-agente trabaja.
 
