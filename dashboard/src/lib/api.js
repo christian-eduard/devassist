@@ -1,5 +1,5 @@
 // src/lib/api.js — API client with auth support
-const API_BASE = import.meta.env.VITE_API_URL || '/api';
+export const API_BASE = import.meta.env.VITE_API_URL || '/api';
 
 function getToken() {
     return localStorage.getItem('da_token');
@@ -94,6 +94,12 @@ export const api = {
         body: JSON.stringify(data)
     }),
     deleteIdea: (projectId, ideaId) => request(`/projects/${projectId}/ideas/${ideaId}`, { method: 'DELETE' }),
+    getUnassignedIdeas: () => request('/projects/ideas/unassigned'),
+    deleteUnassignedIdea: (ideaId) => request(`/projects/ideas/unassigned/${ideaId}`, { method: 'DELETE' }),
+    assignIdea: (data) => request('/projects/ideas/assign', {
+        method: 'POST',
+        body: JSON.stringify(data)
+    }),
     linkFicha: (projectId, fichaId) => request(`/projects/${projectId}/fichas`, {
         method: 'POST',
         body: JSON.stringify({ ficha_id: fichaId })

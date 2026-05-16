@@ -31,8 +31,10 @@ router.get('/', async (req, res) => {
 
 // POST /api/projects/tess-action — Tess calls this from WhatsApp
 router.post('/tess-action', async (req, res) => {
+    logger.info({ bodyKeys: Object.keys(req.body), hasImageUrl: !!req.body.imageUrl, hasImage_url: !!req.body.image_url, hasBase64: !!req.body.image_base64 }, 'Tess action payload received');
     try {
         const { action, name, projectName, description, tags, content, author, fichaTitle } = req.body;
+
 
         if (action === 'create') {
             if (!name) return res.status(400).json({ ok: false, error: 'name required' });
@@ -47,18 +49,27 @@ router.post('/tess-action', async (req, res) => {
 
         if (action === 'add-idea') {
             const pName = projectName || name;
-            if (!pName || !content) return res.status(400).json({ ok: false, error: 'projectName and content required' });
+            if (!content) return res.status(400).json({ ok: false, error: 'content required' });
 
-            const { rows: pRows } = await pool.query(
-                'SELECT id FROM projects WHERE LOWER(name) LIKE LOWER($1) LIMIT 1',
-                [`%${pName}%`]
-            );
-            if (!pRows.length) return res.status(404).json({ ok: false, error: `Proyecto "${pName}" no encontrado` });
+            let targetProjectId = null;
+            let targetProjectName = "Notas Sueltas";
+
+            if (pName && pName.trim().length > 0) {
+                const { rows: pRows } = await pool.query(
+                    'SELECT id, name FROM projects WHERE LOWER(name) LIKE LOWER($1) LIMIT 1',
+                    [`%${pName.trim()}%`]
+                );
+                if (pRows.length) {
+                    targetProjectId = pRows[0].id;
+                    targetProjectName = pRows[0].name;
+                }
+                logger.info({ pName, targetProjectId, targetProjectName }, 'Project name matching');
+            }
 
             let ideaTitle = req.body.title || null;
             let imageAnalysis = req.body.imageAnalysis || null;
 
-            // Handle image: if URL provided, fetch it. If base64 provided, use it directly. Then run Nano Banana.
+            // Handle image: if URL provided, fetch it. If base64 provided, use it directly.
             let imageUrl = req.body.imageUrl || req.body.image_url || null;
             let finalAnalysis = imageAnalysis;
             let generatedImages = [];
@@ -67,8 +78,11 @@ router.post('/tess-action', async (req, res) => {
             let imageMimeToProcess = req.body.image_mime || 'image/jpeg';
             let extToSave = 'jpg';
 
-            if (imageUrl && imageUrl.includes('openclaw-tess')) {
-                imageUrl = imageUrl.replace('openclaw-tess', '127.0.0.1');
+            // GATE: If Tess sends an image as URL (localhost) without base64, reject silently.
+            // Only media-watcher (which sends base64) is allowed to create image entries.
+            if (!req.body.image_base64 && imageUrl && (imageUrl.includes('127.0.0.1') || imageUrl.includes('localhost') || imageUrl.includes('openclaw'))) {
+                logger.info({ imageUrl }, 'Blocked Tess image request — media-watcher handles images');
+                return res.json({ ok: true, message: 'Procesando automáticamente...', handled: 'media-watcher' });
             }
 
             if (req.body.image_base64) {
@@ -76,15 +90,13 @@ router.post('/tess-action', async (req, res) => {
                 extToSave = imageMimeToProcess.includes('png') ? 'png' : 'jpg';
             } else if (imageUrl && imageUrl.startsWith('http')) {
                 try {
-                    logger.info(`Fetching image directly from Tess fallback: ${imageUrl}`);
                     const response = await fetch(imageUrl);
-                    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-                    const arrayBuffer = await response.arrayBuffer();
-                    imageBufferToProcess = Buffer.from(arrayBuffer);
+                    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                    imageBufferToProcess = Buffer.from(await response.arrayBuffer());
                     extToSave = imageUrl.split('.').pop().toLowerCase() === 'png' ? 'png' : 'jpg';
                     imageMimeToProcess = `image/${extToSave === 'png' ? 'png' : 'jpeg'}`;
                 } catch (fetchErr) {
-                    logger.error({ err: fetchErr.message }, 'Failed to fetch image from Tess URL');
+                    logger.error({ err: fetchErr.message }, 'Failed to fetch image');
                 }
             }
 
@@ -95,30 +107,46 @@ router.post('/tess-action', async (req, res) => {
                 if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
                 fs.writeFileSync(nodePath.join(uploadsDir, filename), imageBufferToProcess);
                 imageUrl = `/uploads/ideas/${filename}`;
-                logger.info({ filename, size: imageBufferToProcess.length }, 'Image saved for Nano Banana');
+                logger.info({ filename, size: imageBufferToProcess.length }, 'Image saved');
 
-                // Run Nano Banana pipeline
+                // Step 1: ALWAYS run analysis (cheap — Gemini Vision text only)
                 try {
-                    const { rows: ctxRows } = await pool.query('SELECT name, description FROM projects WHERE id = $1', [pRows[0].id]);
-                    const context = ctxRows[0] ? `${ctxRows[0].name}: ${ctxRows[0].description || ''}` : '';
-                    const result = await processIdeaImage(imageBufferToProcess, imageMimeToProcess, context);
-                    finalAnalysis = result.analysis;
-                    generatedImages = result.generatedImages;
-                    metadata = result.metadata || {};
-                    if (result.title && !ideaTitle) ideaTitle = result.title;
-                    logger.info({ genCount: generatedImages.length }, 'Nano Banana pipeline complete');
-                } catch (nbErr) {
-                    logger.warn({ err: nbErr.message }, 'Nano Banana failed, saving original only');
-                    if (!finalAnalysis) finalAnalysis = 'Imagen guardada. Error al procesar con IA.';
+                    const { analyzeImage } = require('../services/nanoBanana');
+                    let context = '';
+                    if (targetProjectId) {
+                        const { rows: ctxRows } = await pool.query('SELECT name, description FROM projects WHERE id = $1', [targetProjectId]);
+                        context = ctxRows[0] ? `${ctxRows[0].name}: ${ctxRows[0].description || ''}` : '';
+                    }
+                    const analysisData = await analyzeImage(imageBufferToProcess, imageMimeToProcess, context);
+                    finalAnalysis = analysisData.analysis;
+                    metadata = analysisData;
+                    if (analysisData.name && !ideaTitle) ideaTitle = analysisData.name;
+                    logger.info({ classification: analysisData.classification }, 'Image analysis complete');
+
+                    // Step 2: Generate Nano Banana variations ONLY for project-assigned ideas (expensive)
+                    if (targetProjectId && analysisData.classification === 'idea') {
+                        try {
+                            const { generateImages } = require('../services/nanoBanana');
+                            generatedImages = await generateImages(analysisData.analysis, imageBufferToProcess, imageMimeToProcess, 2);
+                            logger.info({ count: generatedImages.length }, 'Nano Banana generation complete');
+                        } catch (genErr) {
+                            logger.warn({ err: genErr.message }, 'Nano Banana generation failed');
+                        }
+                    } else if (!targetProjectId) {
+                        logger.info('Notas Sueltas — analysis done, skipping Nano Banana generation');
+                    }
+                } catch (analysisErr) {
+                    logger.warn({ err: analysisErr.message }, 'Image analysis failed');
+                    finalAnalysis = null;
                 }
             }
 
             const { rows } = await pool.query(
                 `INSERT INTO project_ideas (project_id, content, source, author, title, image_url, image_analysis, generated_images, metadata)
                  VALUES ($1, $2, 'whatsapp', $3, $4, $5, $6, $7, $8) RETURNING id`,
-                [pRows[0].id, content, author || 'tess', ideaTitle, imageUrl, finalAnalysis, JSON.stringify(generatedImages), JSON.stringify(metadata)]
+                [targetProjectId, content, author || 'tess', ideaTitle, imageUrl, finalAnalysis, JSON.stringify(generatedImages), JSON.stringify(metadata)]
             );
-            return res.json({ ok: true, message: `Añadido al proyecto "${pName}"`, ideaId: rows[0].id, generatedCount: generatedImages.length, classification: metadata.classification });
+            return res.json({ ok: true, message: `Añadido a "${targetProjectName}"`, ideaId: rows[0].id, generatedCount: generatedImages.length, classification: metadata.classification });
         }
 
         if (action === 'link-ficha') {
@@ -145,6 +173,104 @@ router.post('/tess-action', async (req, res) => {
         res.status(400).json({ ok: false, error: `Acción "${action}" no reconocida. Usa: create, add-idea, link-ficha` });
     } catch (err) {
         logger.error({ err }, 'Error in tess-action');
+        res.status(500).json({ ok: false, error: 'Error interno' });
+    }
+});
+
+// GET /api/projects/ideas/unassigned — Fetch unassigned loose notes
+router.get('/ideas/unassigned', async (req, res) => {
+    try {
+        const { rows: ideas } = await pool.query(
+            'SELECT id, title, content, source, author, image_url, image_analysis, generated_images, metadata, created_at FROM project_ideas WHERE project_id IS NULL ORDER BY created_at DESC'
+        );
+        res.json({ ok: true, ideas });
+    } catch (err) {
+        logger.error({ err }, 'Error fetching unassigned ideas');
+        res.status(500).json({ ok: false, error: 'Error interno' });
+    }
+});
+
+// DELETE /api/projects/ideas/unassigned/:ideaId — must be BEFORE /:id routes
+router.delete('/ideas/unassigned/:ideaId', async (req, res) => {
+    try {
+        const { rowCount } = await pool.query(
+            'DELETE FROM project_ideas WHERE id = $1 AND project_id IS NULL',
+            [req.params.ideaId]
+        );
+        if (rowCount === 0) return res.status(404).json({ ok: false, error: 'Nota suelta no encontrada' });
+        logger.info({ ideaId: req.params.ideaId }, 'Deleted unassigned idea');
+        res.json({ ok: true });
+    } catch (err) {
+        logger.error({ err }, 'Error deleting unassigned idea');
+        res.status(500).json({ ok: false, error: 'Error interno' });
+    }
+});
+
+// POST /api/projects/ideas/assign — Move an unassigned idea to a project (+ run Nano Banana)
+router.post('/ideas/assign', async (req, res) => {
+    try {
+        const { projectName, ideaId } = req.body;
+        if (!projectName) return res.status(400).json({ ok: false, error: 'projectName required' });
+
+        // Find project
+        const { rows: pRows } = await pool.query(
+            'SELECT id, name, description FROM projects WHERE LOWER(name) LIKE LOWER($1) LIMIT 1',
+            [`%${projectName.trim()}%`]
+        );
+        if (!pRows.length) return res.status(404).json({ ok: false, error: `Proyecto "${projectName}" no encontrado` });
+
+        const project = pRows[0];
+
+        // Find the idea (latest unassigned if no ideaId given)
+        let idea;
+        if (ideaId) {
+            const { rows } = await pool.query('SELECT * FROM project_ideas WHERE id = $1', [ideaId]);
+            idea = rows[0];
+        } else {
+            const { rows } = await pool.query('SELECT * FROM project_ideas WHERE project_id IS NULL ORDER BY created_at DESC LIMIT 1');
+            idea = rows[0];
+        }
+        if (!idea) return res.status(404).json({ ok: false, error: 'No hay ideas sin asignar' });
+
+        // Assign to project
+        await pool.query('UPDATE project_ideas SET project_id = $1 WHERE id = $2', [project.id, idea.id]);
+        logger.info({ ideaId: idea.id, projectId: project.id, projectName: project.name }, 'Idea assigned to project');
+
+        // Run analysis + Nano Banana if image exists
+        let generatedCount = 0;
+        let existingGen = [];
+        try { existingGen = typeof idea.generated_images === 'string' ? JSON.parse(idea.generated_images || '[]') : (idea.generated_images || []); } catch(e) { existingGen = []; }
+        
+        if (idea.image_url) {
+            try {
+                const imagePath = nodePath.join(__dirname, '../../', idea.image_url);
+                if (fs.existsSync(imagePath)) {
+                    const imageBuffer = fs.readFileSync(imagePath);
+                    const mimeType = idea.image_url.endsWith('.png') ? 'image/png' : 'image/jpeg';
+                    const context = `${project.name}: ${project.description || ''}`;
+                    
+                    // Always run full pipeline (analysis + generation) with project context
+                    const result = await processIdeaImage(imageBuffer, mimeType, context);
+                    
+                    await pool.query(
+                        'UPDATE project_ideas SET image_analysis = $1, generated_images = $2, metadata = $3, title = COALESCE($4, title) WHERE id = $5',
+                        [result.analysis, JSON.stringify(result.generatedImages), JSON.stringify(result.metadata || {}), result.title, idea.id]
+                    );
+                    generatedCount = result.generatedImages.length;
+                    logger.info({ count: generatedCount, analysis: !!result.analysis }, 'Full pipeline run on assigned idea');
+                }
+            } catch (nbErr) {
+                logger.warn({ err: nbErr.message }, 'Pipeline on assign failed');
+                // If pipeline failed but we had existing analysis, preserve it
+                if (idea.image_analysis) {
+                    logger.info('Preserving existing analysis from Notas Sueltas');
+                }
+            }
+        }
+
+        res.json({ ok: true, message: `Idea movida a "${project.name}"`, ideaId: idea.id, projectId: project.id, generatedCount });
+    } catch (err) {
+        logger.error({ err }, 'Error assigning idea');
         res.status(500).json({ ok: false, error: 'Error interno' });
     }
 });
@@ -353,6 +479,8 @@ router.post('/:id/ideas', async (req, res) => {
         res.status(500).json({ ok: false, error: 'Error interno' });
     }
 });
+
+// (DELETE /ideas/unassigned/:ideaId moved above /:id routes for correct Express matching)
 
 // DELETE /api/projects/:id/ideas/:ideaId
 router.delete('/:id/ideas/:ideaId', async (req, res) => {

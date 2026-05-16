@@ -9,6 +9,7 @@ import FichaDetailPage from './pages/FichaDetailPage';
 import AIHubPage from './pages/AIHubPage';
 import ProjectsPage from './pages/ProjectsPage';
 import ProjectDetailPage from './pages/ProjectDetailPage';
+import NotasSueltasPage from './pages/NotasSueltasPage';
 import GraphifyPage from './pages/GraphifyPage';
 import LoginPage from './pages/LoginPage';
 import TessChatWidget from './components/TessChatWidget';
@@ -44,6 +45,7 @@ export default function App() {
                         <Route path="/fichas/:id" element={<FichaDetailPage />} />
                         <Route path="/projects" element={<ProjectsPage />} />
                         <Route path="/projects/:id" element={<ProjectDetailPage />} />
+                        <Route path="/notas-sueltas" element={<NotasSueltasPage />} />
                         <Route path="/search" element={<SearchPage />} />
                         <Route path="/aihub" element={<AIHubPage />} />
                         <Route path="/graphify" element={<GraphifyPage />} />

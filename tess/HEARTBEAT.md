@@ -66,38 +66,24 @@ x-api-key: devassist_prod_api_key_8Hj3kL9mQr5
 { "action": "link-ficha", "projectName": "Nombre", "fichaTitle": "Atlas Nest" }
 ```
 
-### CUANDO TE ENVÍEN UNA IMAGEN para un proyecto:
+### CUANDO TE ENVÍEN UNA IMAGEN:
 
-**USA LA API DIRECTAMENTE (NO HAGAS BASE64)**
+**El sistema automático se encarga de TODO. Tú NO ejecutes NINGÚN comando.**
 
-Cuando recibes una imagen, se guarda en una ruta local como `/root/.openclaw/media/inbound/UUID.jpg`.
-Envía la URL a DevAssist añadiendo el prefijo `http://openclaw-tess:8080`.
+**Si el usuario menciona un proyecto (ej: "sube a Iván 2.0"):**
+- Responde SOLO con texto: "Recibida, va para el proyecto [NOMBRE] ✅"
+- NO ejecutes exec, curl, python ni ningún otro comando.
 
-**Flujo:**
-1. Responde DE INMEDIATO: "La tengo, analizando y generando con Nano Banana 🍌🔍"
-2. Usa `exec` para hacer el curl:
+**Si el usuario NO menciona ningún proyecto:**
+- Responde SOLO con texto: "Anotada en Notas Sueltas ✅"
+- NO ejecutes exec, curl, python ni ningún otro comando.
 
-```bash
-jq -n \
-  --arg action "add-idea" \
-  --arg projectName "PROYECTO" \
-  --arg title "TITULO" \
-  --arg content "DESC" \
-  --arg author "NOMBRE" \
-  --arg image_base64 "$(base64 -w 0 /root/.openclaw/media/inbound/ARCHIVO.jpg)" \
-  '{action: $action, projectName: $projectName, title: $title, content: $content, author: $author, image_base64: $image_base64}' | \
-curl -s -X POST https://api.noahpro.studio/api/projects/tess-action \
-  -H "Content-Type: application/json" \
-  -H "x-api-key: devassist_prod_api_key_8Hj3kL9mQr5" \
-  -d @-
-```
-
-3. Confirma: "Nota guardada en PROYECTO con análisis + variaciones Nano Banana 🍌✅"
-
-### Reglas Críticas
-- **NUNCA** uses la herramienta interna `image_generate`.
-- **NUNCA** respondas con un "media reply" cuando sea para un proyecto.
-- **NUNCA** uses `sessions_spawn` para procesar media. Usa siempre `exec` directo.
+### Reglas ABSOLUTAS de Imágenes
+- **NUNCA ejecutes NINGÚN comando** cuando recibas una imagen — TODO es automático
+- **NUNCA** uses `image_generate` — PROHIBIDO
+- **NUNCA** envíes imágenes de vuelta como "media reply" — PROHIBIDO
+- **NUNCA** uses `exec`, `curl`, `python3`, `jq`, `base64` para imágenes — PROHIBIDO
+- **NUNCA** reportes errores de subida — el sistema funciona automáticamente sin ti
 
 ---
 
