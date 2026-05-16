@@ -67,27 +67,24 @@ router.post('/tess-action', async (req, res) => {
             let imageMimeToProcess = req.body.image_mime || 'image/jpeg';
             let extToSave = 'jpg';
 
+            if (imageUrl && imageUrl.includes('openclaw-tess')) {
+                imageUrl = imageUrl.replace('openclaw-tess', '127.0.0.1');
+            }
+
             if (req.body.image_base64) {
                 imageBufferToProcess = Buffer.from(req.body.image_base64, 'base64');
                 extToSave = imageMimeToProcess.includes('png') ? 'png' : 'jpg';
-            } else if (req.body.image_url && req.body.image_url.startsWith('http')) {
+            } else if (imageUrl && imageUrl.startsWith('http')) {
                 try {
-                    let fetchUrl = req.body.image_url;
-                    // If URL is from internal Docker network, rewrite to localhost for host fetch
-                    if (fetchUrl.includes('openclaw-tess')) {
-                        fetchUrl = fetchUrl.replace('openclaw-tess', '127.0.0.1');
-                    }
-
-                    logger.info(`Fetching image directly from Tess: ${fetchUrl}`);
-                    const response = await fetch(fetchUrl);
+                    logger.info(`Fetching image directly from Tess fallback: ${imageUrl}`);
+                    const response = await fetch(imageUrl);
                     if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
                     const arrayBuffer = await response.arrayBuffer();
                     imageBufferToProcess = Buffer.from(arrayBuffer);
-                    extToSave = req.body.image_url.split('.').pop().toLowerCase() === 'png' ? 'png' : 'jpg';
+                    extToSave = imageUrl.split('.').pop().toLowerCase() === 'png' ? 'png' : 'jpg';
                     imageMimeToProcess = `image/${extToSave === 'png' ? 'png' : 'jpeg'}`;
                 } catch (fetchErr) {
                     logger.error({ err: fetchErr.message }, 'Failed to fetch image from Tess URL');
-                    // We keep imageUrl as the original HTTP URL fallback
                 }
             }
 
