@@ -11,6 +11,7 @@ import ProjectsPage from './pages/ProjectsPage';
 import ProjectDetailPage from './pages/ProjectDetailPage';
 import NotasSueltasPage from './pages/NotasSueltasPage';
 import GraphifyPage from './pages/GraphifyPage';
+import GitHubPage from './pages/GitHubPage';
 import LoginPage from './pages/LoginPage';
 import TessChatWidget from './components/TessChatWidget';
 
@@ -48,6 +49,7 @@ export default function App() {
                         <Route path="/notas-sueltas" element={<NotasSueltasPage />} />
                         <Route path="/search" element={<SearchPage />} />
                         <Route path="/aihub" element={<AIHubPage />} />
+                        <Route path="/github" element={<GitHubPage />} />
                         <Route path="/graphify" element={<GraphifyPage />} />
                         <Route path="*" element={<Navigate to="/" replace />} />
                     </Routes>

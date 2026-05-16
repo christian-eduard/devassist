@@ -16,6 +16,7 @@ const aiRouter = require('./routes/ai');
 const projectsRouter = require('./routes/projects');
 const agentsRouter = require('./routes/agents');
 const graphifyRouter = require('./routes/graphify');
+const githubRouter = require('./routes/github');
 const authRouter = require('./routes/auth');
 
 const app = express();
@@ -54,6 +55,7 @@ app.use('/api/ai', apiKeyAuth, aiRouter);                // Protected
 app.use('/api/projects', apiKeyAuth, projectsRouter);    // Protected
 app.use('/api/agents', apiKeyAuth, agentsRouter);        // Protected
 app.use('/api/graphify', apiKeyAuth, graphifyRouter);    // Protected
+app.use('/api/github', apiKeyAuth, githubRouter);        // Protected
 
 // ── Error Handler ──
 app.use(errorHandler);

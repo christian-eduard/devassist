@@ -7,6 +7,7 @@ const NAV_ITEMS = [
     { to: '/', icon: '📊', label: 'Knowledge Vault' },
     { to: '/projects', icon: '📁', label: 'Proyectos' },
     { to: '/notas-sueltas', icon: '📝', label: 'Notas Sueltas' },
+    { to: '/github', icon: '📂', label: 'GitHub' },
     { to: '/search', icon: '🔍', label: 'Búsqueda RAG' },
     { to: '/aihub', icon: '🤖', label: 'AI Hub' },
     { to: '/graphify', icon: '⚡', label: 'Graphify' },
