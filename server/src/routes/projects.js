@@ -55,21 +55,28 @@ router.post('/tess-action', async (req, res) => {
             );
             if (!pRows.length) return res.status(404).json({ ok: false, error: `Proyecto "${pName}" no encontrado` });
 
-            const ideaTitle = req.body.title || null;
-            const imageAnalysis = req.body.imageAnalysis || null;
+            let ideaTitle = req.body.title || null;
+            let imageAnalysis = req.body.imageAnalysis || null;
 
             // Handle image: if URL provided, fetch it. If base64 provided, use it directly. Then run Nano Banana.
             let imageUrl = req.body.imageUrl || req.body.image_url || null;
             let finalAnalysis = imageAnalysis;
             let generatedImages = [];
+            let metadata = {};
             let imageBufferToProcess = null;
             let imageMimeToProcess = req.body.image_mime || 'image/jpeg';
             let extToSave = 'jpg';
 
             if (req.body.image_url && req.body.image_url.startsWith('http')) {
                 try {
-                    logger.info(`Fetching image directly from Tess: ${req.body.image_url}`);
-                    const response = await fetch(req.body.image_url);
+                    let fetchUrl = req.body.image_url;
+                    // If URL is from internal Docker network, rewrite to localhost for host fetch
+                    if (fetchUrl.includes('openclaw-tess')) {
+                        fetchUrl = fetchUrl.replace('openclaw-tess', '127.0.0.1');
+                    }
+
+                    logger.info(`Fetching image directly from Tess: ${fetchUrl}`);
+                    const response = await fetch(fetchUrl);
                     if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
                     const arrayBuffer = await response.arrayBuffer();
                     imageBufferToProcess = Buffer.from(arrayBuffer);
@@ -100,19 +107,21 @@ router.post('/tess-action', async (req, res) => {
                     const result = await processIdeaImage(imageBufferToProcess, imageMimeToProcess, context);
                     finalAnalysis = result.analysis;
                     generatedImages = result.generatedImages;
+                    metadata = result.metadata || {};
+                    if (result.title && !ideaTitle) ideaTitle = result.title;
                     logger.info({ genCount: generatedImages.length }, 'Nano Banana pipeline complete');
                 } catch (nbErr) {
                     logger.warn({ err: nbErr.message }, 'Nano Banana failed, saving original only');
-                    if (!finalAnalysis) finalAnalysis = 'Imagen guardada. Nano Banana no pudo generar variaciones.';
+                    if (!finalAnalysis) finalAnalysis = 'Imagen guardada. Error al procesar con IA.';
                 }
             }
 
             const { rows } = await pool.query(
-                `INSERT INTO project_ideas (project_id, content, source, author, title, image_url, image_analysis, generated_images)
-                 VALUES ($1, $2, 'whatsapp', $3, $4, $5, $6, $7) RETURNING id`,
-                [pRows[0].id, content, author || 'tess', ideaTitle, imageUrl, finalAnalysis, JSON.stringify(generatedImages)]
+                `INSERT INTO project_ideas (project_id, content, source, author, title, image_url, image_analysis, generated_images, metadata)
+                 VALUES ($1, $2, 'whatsapp', $3, $4, $5, $6, $7, $8) RETURNING id`,
+                [pRows[0].id, content, author || 'tess', ideaTitle, imageUrl, finalAnalysis, JSON.stringify(generatedImages), JSON.stringify(metadata)]
             );
-            return res.json({ ok: true, message: `Idea añadida al proyecto "${pName}"`, ideaId: rows[0].id, generatedCount: generatedImages.length });
+            return res.json({ ok: true, message: `Añadido al proyecto "${pName}"`, ideaId: rows[0].id, generatedCount: generatedImages.length, classification: metadata.classification });
         }
 
         if (action === 'link-ficha') {
@@ -150,7 +159,7 @@ router.get('/:id', async (req, res) => {
         if (!pRows.length) return res.status(404).json({ ok: false, error: 'Proyecto no encontrado' });
 
         const { rows: ideas } = await pool.query(
-            'SELECT id, title, content, source, author, image_url, image_analysis, generated_images, created_at FROM project_ideas WHERE project_id = $1 ORDER BY created_at DESC',
+            'SELECT id, title, content, source, author, image_url, image_analysis, generated_images, metadata, created_at FROM project_ideas WHERE project_id = $1 ORDER BY created_at DESC',
             [req.params.id]
         );
 

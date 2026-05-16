@@ -219,6 +219,43 @@ export default function ProjectDetailPage() {
                                 const hasImage = !!idea.image_url;
                                 const hasAnalysis = !!idea.image_analysis;
                                 const imgUrl = getImageFullUrl(idea.image_url);
+                                const isProduct = idea.metadata?.classification === 'product';
+
+                                if (isProduct) {
+                                    return (
+                                        <div key={idea.id} className="card" style={{ padding: '16px', borderLeft: `3px solid #f59e0b` }}>
+                                            <div style={{ display: 'flex', gap: '16px' }}>
+                                                {imgUrl && (
+                                                    <img src={imgUrl} alt={idea.title} style={{ width: '80px', height: '80px', objectFit: 'cover', borderRadius: '8px', cursor: 'zoom-in' }} onClick={() => setImagePreview(imgUrl)} />
+                                                )}
+                                                <div style={{ flex: 1, minWidth: 0 }}>
+                                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                                                        <h4 style={{ margin: '0 0 4px 0', fontSize: '15px', fontWeight: '600', color: '#fcd34d', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                                            🛍️ {idea.metadata?.name || idea.title || 'Producto'}
+                                                        </h4>
+                                                        <button onClick={(e) => handleDeleteIdea(idea.id, e)} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '12px' }}>✕</button>
+                                                    </div>
+                                                    <p style={{ margin: '0 0 8px 0', fontSize: '13px', color: 'var(--text-secondary)', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+                                                        {idea.metadata?.analysis || idea.image_analysis || idea.content}
+                                                    </p>
+                                                    <div style={{ display: 'flex', gap: '12px', fontSize: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
+                                                        {idea.metadata?.estimatedPrice && (
+                                                            <span style={{ background: 'rgba(245,158,11,0.15)', color: '#fcd34d', padding: '2px 8px', borderRadius: '10px', fontWeight: '600' }}>
+                                                                {idea.metadata.estimatedPrice} {idea.metadata.currency || '€'}
+                                                            </span>
+                                                        )}
+                                                        {idea.metadata?.brand && idea.metadata.brand.toLowerCase() !== 'null' && (
+                                                            <span style={{ color: 'var(--text-muted)' }}>{idea.metadata.brand}</span>
+                                                        )}
+                                                        <span style={{ marginLeft: 'auto', color: 'var(--text-muted)', fontSize: '11px' }}>
+                                                            {new Date(idea.created_at).toLocaleDateString('es', { day: 'numeric', month: 'short' })}
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    );
+                                }
 
                                 return (
                                     <div key={idea.id}

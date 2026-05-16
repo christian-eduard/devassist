@@ -15,14 +15,31 @@ const IMAGE_GEN_MODEL = 'nano-banana-pro-preview';  // For image generation
 async function analyzeImage(imageBuffer, mimeType = 'image/jpeg', context = '') {
     const base64 = imageBuffer.toString('base64');
 
+    const prompt = `Clasifica y analiza esta imagen. ${context ? `Contexto: ${context}` : ''}
+    
+INSTRUCCIONES:
+Si es un boceto, esquema, idea a mano, pizarra o concepto abstracto, la clase es "idea".
+Si es un producto real, comercial, componente, herramienta, o material de compra, la clase es "product".
+
+Responde ÚNICAMENTE con un JSON válido usando este esquema exacto:
+{
+  "classification": "idea" | "product",
+  "name": "Nombre corto descriptivo (ej: Motor Brushless 2207 o Concepto de Dron)",
+  "analysis": "Descripción detallada (qué es, utilidad, etc)",
+  "brand": "Marca si es visible (sólo si classification=product, sino null)",
+  "estimatedPrice": "Precio estimado numérico o null",
+  "currency": "EUR o USD",
+  "specs": "Lista corta de specs"
+}`;
+
     const body = {
         contents: [{
             parts: [
-                { text: `Analiza esta imagen en detalle. ${context ? `Contexto del proyecto: ${context}` : ''}\n\nDescribe:\n1. Qué muestra la imagen\n2. Elementos técnicos relevantes\n3. Posibles aplicaciones o mejoras\n4. Detalles útiles para I+D\n\nResponde en español, sé técnico pero claro.` },
+                { text: prompt },
                 { inline_data: { mime_type: mimeType, data: base64 } },
             ]
         }],
-        generationConfig: { temperature: 0.4, maxOutputTokens: 1024 },
+        generationConfig: { temperature: 0.1, responseMimeType: "application/json" },
     };
 
     const url = `${API_BASE}/${VISION_MODEL}:generateContent?key=${config.gemini.apiKey}`;
@@ -39,7 +56,14 @@ async function analyzeImage(imageBuffer, mimeType = 'image/jpeg', context = '') 
     }
 
     const data = await res.json();
-    return data.candidates?.[0]?.content?.parts?.[0]?.text || 'No se pudo analizar la imagen';
+    const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+    
+    try {
+        return JSON.parse(text);
+    } catch (e) {
+        logger.error({ err: e.message, text }, 'Failed to parse Gemini JSON response');
+        return { classification: 'idea', name: 'Imagen Analizada', analysis: text || 'Sin análisis' };
+    }
 }
 
 /**
@@ -121,15 +145,26 @@ async function generateImages(prompt, referenceImage = null, mimeType = 'image/j
 async function processIdeaImage(imageBuffer, mimeType, projectContext = '') {
     logger.info('Starting Nano Banana pipeline: analyze + generate');
 
-    // Step 1: Analyze original with Gemini Vision
-    const analysis = await analyzeImage(imageBuffer, mimeType, projectContext);
-    logger.info({ analysisLen: analysis.length }, 'Image analysis complete');
+    // Step 1: Analyze original with Gemini Vision (returns JSON now)
+    const analysisData = await analyzeImage(imageBuffer, mimeType, projectContext);
+    logger.info({ classification: analysisData.classification }, 'Image classification complete');
 
-    // Step 2: Generate variations with Nano Banana Pro
-    const generatedImages = await generateImages(analysis, imageBuffer, mimeType, 2);
-    logger.info({ count: generatedImages.length }, 'Nano Banana generation complete');
+    // Step 2: Generate variations ONLY if it is an idea/sketch
+    let generatedImages = [];
+    if (analysisData.classification === 'idea') {
+        logger.info('Image classified as IDEA, running Nano Banana generation...');
+        generatedImages = await generateImages(analysisData.analysis, imageBuffer, mimeType, 2);
+        logger.info({ count: generatedImages.length }, 'Nano Banana generation complete');
+    } else {
+        logger.info('Image classified as PRODUCT, skipping Nano Banana.');
+    }
 
-    return { analysis, generatedImages };
+    return { 
+        analysis: analysisData.analysis, 
+        generatedImages,
+        title: analysisData.name,
+        metadata: analysisData
+    };
 }
 
 module.exports = { analyzeImage, generateImages, processIdeaImage };

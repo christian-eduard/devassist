@@ -148,6 +148,7 @@ async function initDatabase() {
         await client.query(`ALTER TABLE project_ideas ADD COLUMN IF NOT EXISTS image_analysis TEXT`);
         await client.query(`ALTER TABLE project_ideas ADD COLUMN IF NOT EXISTS title VARCHAR(200)`);
         await client.query(`ALTER TABLE project_ideas ADD COLUMN IF NOT EXISTS generated_images JSONB DEFAULT '[]'`);
+        await client.query(`ALTER TABLE project_ideas ADD COLUMN IF NOT EXISTS metadata JSONB DEFAULT '{}'`);
 
         await client.query(`
             CREATE TABLE IF NOT EXISTS project_fichas (
