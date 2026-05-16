@@ -13,12 +13,13 @@ router.get('/', async (req, res) => {
         const { rows } = await pool.query(`
             SELECT p.id, p.name, p.path, p.stack, p.description, p.status, p.priority,
                    p.tags, p.cover_emoji, p.created_at, p.updated_at,
+                   p.pinned, p.owner,
                    COALESCE(ic.idea_count, 0)::int AS idea_count,
                    COALESCE(fc.ficha_count, 0)::int AS ficha_count
             FROM projects p
             LEFT JOIN (SELECT project_id, COUNT(*) AS idea_count FROM project_ideas GROUP BY project_id) ic ON ic.project_id = p.id
             LEFT JOIN (SELECT project_id, COUNT(*) AS ficha_count FROM project_fichas GROUP BY project_id) fc ON fc.project_id = p.id
-            ORDER BY p.priority ASC, p.created_at DESC
+            ORDER BY p.pinned DESC NULLS LAST, p.priority ASC, p.created_at DESC
         `);
         res.json({ ok: true, projects: rows });
     } catch (err) {

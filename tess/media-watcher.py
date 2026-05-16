@@ -20,6 +20,16 @@ PROJECT_KEYWORDS = {
     "ivan": "Iván 2.0",
     "drones": "Drones",
     "drone": "Drones",
+    "mi personal": "__PERSONAL__",
+    "mis notas": "__PERSONAL__",
+    "mi libreta": "__PERSONAL__",
+    "personal": "__PERSONAL__",
+}
+
+# Map author → personal project name
+PERSONAL_PROJECTS = {
+    "chris": "Chris Personal",
+    "ivan": "Iván Personal",
 }
 
 def load_seen():
@@ -97,6 +107,12 @@ def extract_project_from_caption(caption):
     
     return ""
 
+def resolve_personal_project(project_name, author):
+    """If project is __PERSONAL__, resolve to author's personal project."""
+    if project_name == "__PERSONAL__":
+        return PERSONAL_PROJECTS.get(author, "Chris Personal")
+    return project_name
+
 def extract_author_from_caption(caption, from_jid):
     """Determine author from the formatted caption or JID."""
     if "+34644984173" in (caption or "") or "+34644984173" in (from_jid or ""):
@@ -172,6 +188,7 @@ def main():
                     caption, from_jid = get_caption_for_image(f)
                     project_name = extract_project_from_caption(caption)
                     author = extract_author_from_caption(caption, from_jid)
+                    project_name = resolve_personal_project(project_name, author)
                     
                     if caption:
                         print(f"[media-watcher] Caption: \"{caption[:80]}\" → project: \"{project_name or '(none)'}\"")

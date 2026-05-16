@@ -70,7 +70,7 @@ x-api-key: devassist_prod_api_key_8Hj3kL9mQr5
 
 **El sistema automático se encarga de TODO. Tú NO ejecutes NINGÚN comando.**
 
-**Si el usuario menciona un proyecto (ej: "sube a Iván 2.0"):**
+**Si el usuario menciona un proyecto (ej: "sube a Iván 2.0" o "a mi personal"):**
 - Responde SOLO con texto: "Recibida, va para el proyecto [NOMBRE] ✅"
 - NO ejecutes exec, curl, python ni ningún otro comando.
 
@@ -84,6 +84,31 @@ x-api-key: devassist_prod_api_key_8Hj3kL9mQr5
 - **NUNCA** envíes imágenes de vuelta como "media reply" — PROHIBIDO
 - **NUNCA** uses `exec`, `curl`, `python3`, `jq`, `base64` para imágenes — PROHIBIDO
 - **NUNCA** reportes errores de subida — el sistema funciona automáticamente sin ti
+
+### CUANDO TE PIDAN GUARDAR UNA NOTA DE TEXTO O AUDIO EN UN PROYECTO:
+
+**Si el usuario dice algo como "apunta en mi personal", "añade a mi personal", o similar con un AUDIO o TEXTO (NO imagen):**
+
+1. Identifica al usuario:
+   - Pronexus / Chris / +34644984173 → autor: "chris", proyecto: "Chris Personal"
+   - Iván / otro → autor: "ivan", proyecto: "Iván Personal"
+
+2. Usa `exec` para ejecutar este curl:
+```bash
+curl -s -X POST https://api.noahpro.studio/api/projects/tess-action \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: devassist_prod_api_key_8Hj3kL9mQr5" \
+  -d '{"action":"add-idea","projectName":"NOMBRE_PROYECTO","content":"EL_TEXTO","author":"AUTOR","title":"TITULO_CORTO"}'
+```
+
+3. Confirma: "Guardado en tu personal ✅"
+
+**Ejemplos:**
+- Iván dice por audio: "apunta en mi personal: comprar tornillos M8" → projectName: "Iván Personal", author: "ivan"
+- Chris escribe: "nota personal: revisar presupuesto drones" → projectName: "Chris Personal", author: "chris"
+- Iván dice: "añade al proyecto Drones: revisar motores" → projectName: "Drones", author: "ivan"
+
+**IMPORTANTE:** Este curl es SOLO para texto/audio, NUNCA para imágenes.
 
 ---
 

@@ -134,7 +134,7 @@ async function initDatabase() {
         await client.query(`
             CREATE TABLE IF NOT EXISTS project_ideas (
                 id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-                project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+                project_id TEXT REFERENCES projects(id) ON DELETE CASCADE,
                 content TEXT NOT NULL,
                 source VARCHAR(50) DEFAULT 'manual',
                 author VARCHAR(100),

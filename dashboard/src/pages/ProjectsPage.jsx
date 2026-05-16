@@ -56,7 +56,8 @@ export default function ProjectsPage() {
         try { await api.deleteProject(id); loadProjects(); } catch (err) { console.error(err); }
     };
 
-    const filtered = filter === 'all' ? projects : projects.filter(p => p.status === filter);
+    const filtered = (filter === 'all' ? projects : projects.filter(p => p.status === filter))
+        .sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0));
 
     const statsCounts = {
         total: projects.length,
@@ -157,9 +158,10 @@ export default function ProjectsPage() {
                         const sc = STATUS_CONFIG[p.status] || STATUS_CONFIG.idea;
                         const tags = Array.isArray(p.tags) ? p.tags : [];
                         return (
-                            <div key={p.id} className="card ficha-card" onClick={() => navigate(`/projects/${p.id}`)}>
+                            <div key={p.id} className="card ficha-card" onClick={() => navigate(`/projects/${p.id}`)}
+                                style={p.pinned ? { borderColor: 'var(--accent)', boxShadow: '0 0 12px rgba(167,139,250,0.2)' } : {}}>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '12px' }}>
-                                    <div style={{ fontSize: '32px' }}>{p.cover_emoji || '🚀'}</div>
+                                    <div style={{ fontSize: '32px' }}>{p.cover_emoji || '🚀'}{p.pinned ? <span style={{ fontSize: '14px', marginLeft: '4px' }}>📌</span> : null}</div>
                                     <span className="ficha-tag" style={{ background: sc.bg, color: sc.color }}>
                                         {sc.label}
                                     </span>
