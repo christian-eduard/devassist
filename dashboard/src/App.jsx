@@ -39,10 +39,12 @@ export default function App() {
   }
 
   return (
-    <div className="app">
-      <Sidebar currentPage={currentPage} onNavigate={navigate} />
-      <main className="main-content">{content}</main>
+    <>
+      <div className="app">
+        <Sidebar currentPage={currentPage} onNavigate={navigate} />
+        <main className="main-content">{content}</main>
+      </div>
       <TessChatWidget />
-    </div>
+    </>
   );
 }
