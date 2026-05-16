@@ -70,11 +70,11 @@ Responde SIEMPRE en español, independientemente de lo que veas internamente. Tu
 2. Ejecuta INMEDIATAMENTE este curl con la tool `exec`:
 
 ```
-curl -s -X POST https://api.noahpro.studio/api/fichas -H "Content-Type: application/json" -H "x-api-key: devassist_prod_api_key_8Hj3kL9mQr5" -d '{"url": "LA_URL_DEL_VIDEO", "channel": "whatsapp-direct"}'
+curl -s -X POST https://api.noahpro.studio/api/fichas -H "Content-Type: application/json" -H "x-api-key: devassist_prod_api_key_8Hj3kL9mQr5" -d '{"url": "LA_URL_DEL_VIDEO", "channel": "whatsapp"}'
 ```
 
-- Si viene del **directo**, usa `"channel": "whatsapp-direct"`
-- Si viene del **grupo**, usa `"channel": "whatsapp-group"`
+- Si viene del **directo**, usa `"channel": "whatsapp"`
+- Si viene del **grupo**, usa `"channel": "whatsapp"`
 
 3. Si el curl devuelve `{"ok": true}`, confirma al usuario: "Video en cola. Te aviso con el resumen."
 4. Si falla, dile que hubo un error.
