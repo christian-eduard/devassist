@@ -1,6 +1,138 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { api } from '../lib/api';
 
+const styles = {
+    trigger: {
+        position: 'fixed',
+        bottom: '24px',
+        right: '24px',
+        width: '56px',
+        height: '56px',
+        borderRadius: '50%',
+        background: 'linear-gradient(135deg, #6366f1, #4f46e5)',
+        border: '2px solid rgba(129,140,248,0.5)',
+        boxShadow: '0 8px 32px rgba(99,102,241,0.4)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        cursor: 'pointer',
+        zIndex: 9999,
+        fontSize: '24px',
+        transition: 'transform 0.2s, box-shadow 0.2s',
+    },
+    container: {
+        position: 'fixed',
+        bottom: '24px',
+        right: '24px',
+        width: '380px',
+        height: '520px',
+        maxHeight: '80vh',
+        background: '#0f172a',
+        border: '1px solid #334155',
+        borderRadius: '16px',
+        boxShadow: '0 24px 64px rgba(0,0,0,0.5)',
+        display: 'flex',
+        flexDirection: 'column',
+        zIndex: 9999,
+        overflow: 'hidden',
+    },
+    header: {
+        background: '#1e293b',
+        padding: '14px 16px',
+        borderBottom: '1px solid #334155',
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+    },
+    headerLeft: {
+        display: 'flex',
+        alignItems: 'center',
+        gap: '10px',
+    },
+    headerTitle: {
+        margin: 0,
+        fontSize: '15px',
+        fontWeight: 600,
+        color: '#f1f5f9',
+    },
+    headerSub: {
+        margin: 0,
+        fontSize: '11px',
+        color: '#818cf8',
+    },
+    closeBtn: {
+        background: 'none',
+        border: 'none',
+        color: '#94a3b8',
+        fontSize: '18px',
+        cursor: 'pointer',
+        padding: '4px',
+        lineHeight: 1,
+    },
+    messages: {
+        flex: 1,
+        overflowY: 'auto',
+        padding: '16px',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '12px',
+    },
+    emptyMsg: {
+        textAlign: 'center',
+        color: '#64748b',
+        fontSize: '13px',
+        marginTop: '24px',
+    },
+    msgRow: (isUser) => ({
+        display: 'flex',
+        justifyContent: isUser ? 'flex-end' : 'flex-start',
+    }),
+    msgBubble: (isUser) => ({
+        maxWidth: '80%',
+        padding: '10px 14px',
+        borderRadius: isUser ? '16px 16px 4px 16px' : '16px 16px 16px 4px',
+        fontSize: '13px',
+        lineHeight: 1.5,
+        whiteSpace: 'pre-wrap',
+        ...(isUser
+            ? { background: '#4f46e5', color: '#fff' }
+            : { background: '#1e293b', color: '#e2e8f0', border: '1px solid #334155' }
+        ),
+    }),
+    form: {
+        padding: '12px',
+        background: '#1e293b',
+        borderTop: '1px solid #334155',
+    },
+    inputRow: {
+        display: 'flex',
+        gap: '8px',
+    },
+    input: {
+        flex: 1,
+        background: '#0f172a',
+        border: '1px solid #334155',
+        borderRadius: '24px',
+        padding: '10px 16px',
+        fontSize: '13px',
+        color: '#f1f5f9',
+        outline: 'none',
+    },
+    sendBtn: {
+        width: '40px',
+        height: '40px',
+        borderRadius: '50%',
+        background: '#4f46e5',
+        border: 'none',
+        color: '#fff',
+        fontSize: '16px',
+        cursor: 'pointer',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+};
+
 export default function TessChatWidget() {
     const [open, setOpen] = useState(false);
     const [messages, setMessages] = useState([]);
@@ -15,12 +147,8 @@ export default function TessChatWidget() {
     }, [open]);
 
     useEffect(() => {
-        scrollToBottom();
-    }, [messages]);
-
-    const scrollToBottom = () => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-    };
+    }, [messages]);
 
     const initAgentAndLoadMemory = async () => {
         try {
@@ -35,7 +163,7 @@ export default function TessChatWidget() {
     const handleSend = async (e) => {
         e.preventDefault();
         if (!input.trim() || loading) return;
-        
+
         const userMsg = input.trim();
         setInput('');
         setMessages(prev => [...prev, { role: 'user', content: userMsg }]);
@@ -46,7 +174,7 @@ export default function TessChatWidget() {
             setMessages(prev => [...prev, { role: 'assistant', content: res.reply }]);
         } catch (err) {
             console.error('Failed to chat', err);
-            setMessages(prev => [...prev, { role: 'assistant', content: '❌ Error de conexión con el núcleo TESS.' }]);
+            setMessages(prev => [...prev, { role: 'assistant', content: '❌ Error de conexión con TESS.' }]);
         } finally {
             setLoading(false);
         }
@@ -54,9 +182,12 @@ export default function TessChatWidget() {
 
     if (!open) {
         return (
-            <button 
+            <button
                 onClick={() => setOpen(true)}
-                className="fixed bottom-6 right-6 w-14 h-14 bg-indigo-600 rounded-full shadow-lg flex items-center justify-center hover:bg-indigo-700 transition-colors border-2 border-indigo-400 z-50 text-2xl"
+                style={styles.trigger}
+                onMouseEnter={e => { e.currentTarget.style.transform = 'scale(1.1)'; }}
+                onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1)'; }}
+                title="Hablar con TESS"
             >
                 🤖
             </button>
@@ -64,42 +195,34 @@ export default function TessChatWidget() {
     }
 
     return (
-        <div className="fixed bottom-6 right-6 w-96 h-[600px] max-h-[80vh] bg-slate-900 border border-slate-700 shadow-2xl rounded-xl flex flex-col z-50 overflow-hidden">
-            {/* Header */}
-            <div className="bg-slate-800 p-4 border-b border-slate-700 flex justify-between items-center">
-                <div className="flex items-center gap-3">
-                    <span className="text-2xl">🤖</span>
+        <div style={styles.container}>
+            <div style={styles.header}>
+                <div style={styles.headerLeft}>
+                    <span style={{ fontSize: '22px' }}>🤖</span>
                     <div>
-                        <h3 className="font-semibold text-white">TESS</h3>
-                        <p className="text-xs text-indigo-400">Asistente Principal (Online)</p>
+                        <h3 style={styles.headerTitle}>TESS</h3>
+                        <p style={styles.headerSub}>Asistente Principal (Online)</p>
                     </div>
                 </div>
-                <button onClick={() => setOpen(false)} className="text-slate-400 hover:text-white">
-                    ✕
-                </button>
+                <button onClick={() => setOpen(false)} style={styles.closeBtn}>✕</button>
             </div>
 
-            {/* Messages */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-4">
+            <div style={styles.messages}>
                 {messages.length === 0 && (
-                    <div className="text-center text-slate-500 text-sm mt-4">
+                    <div style={styles.emptyMsg}>
                         TESS inicializada. Lista para ayudar con tus proyectos y conocimientos.
                     </div>
                 )}
                 {messages.map((msg, i) => (
-                    <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                        <div className={`max-w-[80%] rounded-2xl px-4 py-2 ${
-                            msg.role === 'user' 
-                            ? 'bg-indigo-600 text-white rounded-br-none' 
-                            : 'bg-slate-800 text-slate-200 border border-slate-700 rounded-bl-none'
-                        }`}>
-                            <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
+                    <div key={i} style={styles.msgRow(msg.role === 'user')}>
+                        <div style={styles.msgBubble(msg.role === 'user')}>
+                            {msg.content}
                         </div>
                     </div>
                 ))}
                 {loading && (
-                    <div className="flex justify-start">
-                        <div className="bg-slate-800 text-slate-400 border border-slate-700 rounded-2xl rounded-bl-none px-4 py-2 text-sm">
+                    <div style={styles.msgRow(false)}>
+                        <div style={{ ...styles.msgBubble(false), color: '#94a3b8' }}>
                             Escribiendo...
                         </div>
                     </div>
@@ -107,20 +230,21 @@ export default function TessChatWidget() {
                 <div ref={messagesEndRef} />
             </div>
 
-            {/* Input */}
-            <form onSubmit={handleSend} className="p-3 bg-slate-800 border-t border-slate-700">
-                <div className="flex gap-2">
-                    <input 
-                        type="text" 
+            <form onSubmit={handleSend} style={styles.form}>
+                <div style={styles.inputRow}>
+                    <input
+                        type="text"
                         value={input}
                         onChange={e => setInput(e.target.value)}
                         placeholder="Pregúntale algo a TESS..."
-                        className="flex-1 bg-slate-900 border border-slate-700 rounded-full px-4 py-2 text-sm text-white focus:outline-none focus:border-indigo-500"
+                        style={styles.input}
+                        onFocus={e => { e.target.style.borderColor = '#6366f1'; }}
+                        onBlur={e => { e.target.style.borderColor = '#334155'; }}
                     />
-                    <button 
-                        type="submit" 
+                    <button
+                        type="submit"
                         disabled={loading || !input.trim()}
-                        className="bg-indigo-600 text-white w-10 h-10 rounded-full flex items-center justify-center hover:bg-indigo-700 transition-colors disabled:opacity-50"
+                        style={{ ...styles.sendBtn, opacity: (loading || !input.trim()) ? 0.5 : 1 }}
                     >
                         ➤
                     </button>
