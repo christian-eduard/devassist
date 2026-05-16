@@ -2,46 +2,6 @@
 import React, { useState, useEffect } from 'react';
 import { api } from '../lib/api';
 
-const API_BASE = import.meta.env.VITE_API_URL || '/api';
-
-async function fetchGitHubRepos() {
-    const res = await fetch(`${API_BASE}/github/repos`, {
-        headers: { 'x-api-key': localStorage.getItem('api_key') || '' },
-    });
-    return res.json();
-}
-
-async function fetchProjects() {
-    const res = await fetch(`${API_BASE}/github/projects`, {
-        headers: { 'x-api-key': localStorage.getItem('api_key') || '' },
-    });
-    return res.json();
-}
-
-async function linkRepo(projectId, repoUrl, repoName, language) {
-    const res = await fetch(`${API_BASE}/github/link`, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'x-api-key': localStorage.getItem('api_key') || '',
-        },
-        body: JSON.stringify({ project_id: projectId, repo_url: repoUrl, repo_name: repoName, language }),
-    });
-    return res.json();
-}
-
-async function unlinkRepo(projectId) {
-    const res = await fetch(`${API_BASE}/github/unlink`, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'x-api-key': localStorage.getItem('api_key') || '',
-        },
-        body: JSON.stringify({ project_id: projectId }),
-    });
-    return res.json();
-}
-
 export default function GitHubPage() {
     const [repos, setRepos] = useState([]);
     const [projects, setProjects] = useState([]);
@@ -57,25 +17,31 @@ export default function GitHubPage() {
     const loadData = async () => {
         setLoading(true);
         try {
-            const [repoRes, projRes] = await Promise.all([fetchGitHubRepos(), fetchProjects()]);
-            if (repoRes.ok) setRepos(repoRes.repos);
-            else setError(repoRes.error);
-            if (projRes.ok) setProjects(projRes.projects);
+            const [repoRes, projRes] = await Promise.all([
+                api.getGitHubRepos(),
+                api.getGitHubProjects(),
+            ]);
+            setRepos(repoRes.repos || []);
+            setProjects(projRes.projects || []);
         } catch (err) { setError(err.message); }
         finally { setLoading(false); }
     };
 
     const handleLink = async (repo) => {
         if (!selectedProject) return;
-        await linkRepo(selectedProject, repo.html_url, repo.name, repo.language);
-        setLinkingRepo(null);
-        setSelectedProject('');
-        loadData();
+        try {
+            await api.linkRepo(selectedProject, repo.html_url, repo.name, repo.language);
+            setLinkingRepo(null);
+            setSelectedProject('');
+            loadData();
+        } catch (err) { setError(err.message); }
     };
 
     const handleUnlink = async (projectId) => {
-        await unlinkRepo(projectId);
-        loadData();
+        try {
+            await api.unlinkRepo(projectId);
+            loadData();
+        } catch (err) { setError(err.message); }
     };
 
     const filtered = repos.filter(r => {

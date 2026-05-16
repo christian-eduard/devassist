@@ -126,4 +126,16 @@ export const api = {
     }),
     getAnalysis: (id) => request(`/graphify/${id}`),
     queryGraph: (id, query) => request(`/graphify/${id}/query?q=${encodeURIComponent(query)}`),
+
+    // GitHub
+    getGitHubRepos: () => request('/github/repos'),
+    getGitHubProjects: () => request('/github/projects'),
+    linkRepo: (projectId, repoUrl, repoName, language) => request('/github/link', {
+        method: 'POST',
+        body: JSON.stringify({ project_id: projectId, repo_url: repoUrl, repo_name: repoName, language }),
+    }),
+    unlinkRepo: (projectId) => request('/github/unlink', {
+        method: 'POST',
+        body: JSON.stringify({ project_id: projectId }),
+    }),
 };
