@@ -72,85 +72,76 @@ export default function GraphifyPage() {
   }
 
   const statusBadge = (status) => {
-    const colors = {
-      completed: { bg: '#10b981', text: '#fff' },
-      processing: { bg: '#f59e0b', text: '#000' },
-      failed: { bg: '#ef4444', text: '#fff' },
+    const styles = {
+      completed: { bg: 'rgba(0,230,118,0.15)', color: 'var(--success)' },
+      processing: { bg: 'rgba(255,171,0,0.15)', color: 'var(--warning)' },
+      failed: { bg: 'rgba(255,82,82,0.15)', color: 'var(--danger)' },
     };
-    const c = colors[status] || colors.processing;
+    const s = styles[status] || styles.processing;
     return (
-      <span style={{
-        background: c.bg, color: c.text,
-        padding: '2px 10px', borderRadius: 12, fontSize: 12, fontWeight: 600
-      }}>{status}</span>
+      <span className="ficha-tag" style={{ background: s.bg, color: s.color }}>
+        {status}
+      </span>
     );
   };
 
   return (
-    <div style={{ padding: '2rem' }}>
-      <h1 style={{ margin: 0, fontSize: '1.8rem' }}>⚡ Graphify</h1>
-      <p style={{ color: '#94a3b8', marginTop: 4 }}>
-        Knowledge graphs para proyectos de código — analiza repos y obtén mapas interactivos
-      </p>
+    <div>
+      <div className="page-header">
+        <h1 className="page-title">⚡ Graphify</h1>
+        <p className="page-subtitle">
+          Knowledge graphs para proyectos de código — analiza repos y obtén mapas interactivos
+        </p>
+      </div>
 
       {/* Submit form */}
-      <form onSubmit={handleSubmit} style={{
-        display: 'flex', gap: 12, marginTop: 20,
-        background: '#1e293b', padding: 16, borderRadius: 12
-      }}>
-        <input
-          type="url"
-          placeholder="https://github.com/user/repo"
-          value={url}
-          onChange={e => setUrl(e.target.value)}
-          style={{
-            flex: 1, padding: '10px 14px', borderRadius: 8,
-            border: '1px solid #334155', background: '#0f172a',
-            color: '#e2e8f0', fontSize: 14
-          }}
-        />
-        <button type="submit" disabled={submitting} style={{
-          padding: '10px 24px', borderRadius: 8, border: 'none',
-          background: submitting ? '#475569' : '#6366f1',
-          color: '#fff', fontWeight: 600, cursor: submitting ? 'wait' : 'pointer',
-          fontSize: 14
-        }}>
-          {submitting ? 'Analizando...' : '🔍 Analizar'}
-        </button>
+      <form onSubmit={handleSubmit} className="submit-section">
+        <div className="submit-form">
+          <input
+            type="url"
+            placeholder="https://github.com/user/repo"
+            value={url}
+            onChange={e => setUrl(e.target.value)}
+            className="input"
+          />
+          <button type="submit" disabled={submitting} className="btn btn-primary">
+            {submitting ? 'Analizando...' : '🔍 Analizar'}
+          </button>
+        </div>
       </form>
 
-      <div style={{ display: 'flex', gap: 24, marginTop: 24 }}>
+      <div style={{ display: 'flex', gap: '24px', marginTop: '24px' }}>
         {/* Analyses list */}
-        <div style={{ width: 340, flexShrink: 0 }}>
-          <h3 style={{ marginBottom: 12 }}>Análisis recientes</h3>
-          {loading && <p style={{ color: '#64748b' }}>Cargando...</p>}
+        <div style={{ width: '340px', flexShrink: 0 }}>
+          <h3 className="section-title">Análisis recientes</h3>
+          {loading && <div className="loading"><div className="spinner" /></div>}
           {analyses.map(a => (
             <div
               key={a.analysisId}
               onClick={() => loadDetail(a.analysisId)}
+              className="card"
               style={{
-                padding: 14, marginBottom: 8, borderRadius: 10,
-                background: selected?.analysisId === a.analysisId ? '#1e293b' : '#0f172a',
-                border: selected?.analysisId === a.analysisId ? '1px solid #6366f1' : '1px solid #1e293b',
-                cursor: 'pointer', transition: 'all .15s'
+                marginBottom: '8px', cursor: 'pointer',
+                borderColor: selected?.analysisId === a.analysisId ? 'var(--accent)' : undefined,
+                boxShadow: selected?.analysisId === a.analysisId ? '0 0 15px var(--accent-glow)' : undefined,
               }}
             >
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <code style={{ fontSize: 13, color: '#e2e8f0' }}>{a.analysisId}</code>
+                <code style={{ fontSize: '13px', color: 'var(--text-primary)' }}>{a.analysisId}</code>
                 {statusBadge(a.status)}
               </div>
-              <div style={{ fontSize: 12, color: '#64748b', marginTop: 6, wordBreak: 'break-all' }}>
+              <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '6px', wordBreak: 'break-all' }}>
                 {a.url}
               </div>
               {a.stats && (
-                <div style={{ fontSize: 11, color: '#475569', marginTop: 4 }}>
+                <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}>
                   {a.stats.nodes} nodos · {a.stats.edges} edges · {a.stats.communities} comunidades
                 </div>
               )}
             </div>
           ))}
           {!loading && analyses.length === 0 && (
-            <p style={{ color: '#475569', fontSize: 13 }}>Ningún análisis todavía</p>
+            <p style={{ color: 'var(--text-muted)', fontSize: '13px' }}>Ningún análisis todavía</p>
           )}
         </div>
 
@@ -158,11 +149,8 @@ export default function GraphifyPage() {
         <div style={{ flex: 1, minWidth: 0 }}>
           {selected ? (
             <>
-              <div style={{
-                display: 'flex', justifyContent: 'space-between',
-                alignItems: 'center', marginBottom: 16
-              }}>
-                <h3 style={{ margin: 0 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                <h3 className="page-title" style={{ fontSize: '20px' }}>
                   {selected.url?.split('/').slice(-2).join('/')}
                 </h3>
                 {statusBadge(selected.status)}
@@ -170,18 +158,15 @@ export default function GraphifyPage() {
 
               {/* Stats */}
               {selected.stats && (
-                <div style={{ display: 'flex', gap: 12, marginBottom: 20 }}>
+                <div className="stats-grid" style={{ gridTemplateColumns: 'repeat(3, 1fr)' }}>
                   {[
                     { label: 'Nodos', value: selected.stats.nodes, icon: '🔵' },
                     { label: 'Edges', value: selected.stats.edges, icon: '🔗' },
                     { label: 'Comunidades', value: selected.stats.communities, icon: '🏘️' },
                   ].map(s => (
-                    <div key={s.label} style={{
-                      background: '#1e293b', padding: '12px 20px', borderRadius: 10,
-                      textAlign: 'center', flex: 1
-                    }}>
-                      <div style={{ fontSize: 24, fontWeight: 700 }}>{s.icon} {s.value}</div>
-                      <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 2 }}>{s.label}</div>
+                    <div key={s.label} className="stat-card">
+                      <div className="stat-value" style={{ fontSize: '24px' }}>{s.icon} {s.value}</div>
+                      <div className="stat-label">{s.label}</div>
                     </div>
                   ))}
                 </div>
@@ -189,17 +174,12 @@ export default function GraphifyPage() {
 
               {/* God Nodes */}
               {selected.godNodes?.length > 0 && (
-                <div style={{
-                  background: '#1e293b', padding: 16, borderRadius: 10, marginBottom: 16
-                }}>
-                  <h4 style={{ margin: '0 0 10px 0', color: '#f59e0b' }}>👑 God Nodes</h4>
+                <div className="card" style={{ marginBottom: '16px' }}>
+                  <h4 style={{ margin: '0 0 10px 0', color: 'var(--warning)' }}>👑 God Nodes</h4>
                   {selected.godNodes.map((g, i) => (
-                    <div key={i} style={{
-                      display: 'flex', justifyContent: 'space-between',
-                      padding: '6px 0', borderBottom: '1px solid #334155'
-                    }}>
-                      <code style={{ color: '#e2e8f0' }}>{g.name}</code>
-                      <span style={{ color: '#94a3b8', fontSize: 13 }}>{g.edges} conexiones</span>
+                    <div key={i} className="key-point" style={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <code style={{ color: 'var(--text-primary)' }}>{g.name}</code>
+                      <span style={{ color: 'var(--text-secondary)', fontSize: '13px' }}>{g.edges} conexiones</span>
                     </div>
                   ))}
                 </div>
@@ -207,49 +187,36 @@ export default function GraphifyPage() {
 
               {/* Action buttons */}
               {selected.status === 'completed' && (
-                <div style={{ display: 'flex', gap: 10, marginBottom: 20, flexWrap: 'wrap' }}>
+                <div style={{ display: 'flex', gap: '10px', marginBottom: '20px', flexWrap: 'wrap' }}>
                   {selected.files?.includes('graph.html') && (
                     <a href={`/uploads/graphify/${selected.analysisId}/graph.html`}
-                       target="_blank" rel="noreferrer"
-                       style={btnStyle('#6366f1')}>🕸️ Grafo Interactivo</a>
+                       target="_blank" rel="noreferrer" className="btn btn-primary">🕸️ Grafo Interactivo</a>
                   )}
                   {selected.files?.includes('callflow.html') && (
                     <a href={`/uploads/graphify/${selected.analysisId}/callflow.html`}
-                       target="_blank" rel="noreferrer"
-                       style={btnStyle('#10b981')}>📊 Call Flow</a>
+                       target="_blank" rel="noreferrer" className="btn" style={{ background: 'var(--success)', color: '#000' }}>📊 Call Flow</a>
                   )}
                   {selected.files?.includes('GRAPH_TREE.html') && (
                     <a href={`/uploads/graphify/${selected.analysisId}/GRAPH_TREE.html`}
-                       target="_blank" rel="noreferrer"
-                       style={btnStyle('#f59e0b')}>🌳 Árbol</a>
+                       target="_blank" rel="noreferrer" className="btn" style={{ background: 'var(--warning)', color: '#000' }}>🌳 Árbol</a>
                   )}
                 </div>
               )}
 
               {/* Query */}
               {selected.status === 'completed' && (
-                <div style={{
-                  background: '#1e293b', padding: 16, borderRadius: 10, marginBottom: 16
-                }}>
+                <div className="card" style={{ marginBottom: '16px' }}>
                   <h4 style={{ margin: '0 0 10px 0' }}>🔍 Consultar grafo</h4>
-                  <form onSubmit={handleQuery} style={{ display: 'flex', gap: 10 }}>
-                    <input
-                      placeholder="¿Cómo se conecta la autenticación con la DB?"
-                      value={queryText}
-                      onChange={e => setQueryText(e.target.value)}
-                      style={{
-                        flex: 1, padding: '8px 12px', borderRadius: 6,
-                        border: '1px solid #334155', background: '#0f172a',
-                        color: '#e2e8f0', fontSize: 13
-                      }}
-                    />
-                    <button type="submit" style={btnStyle('#6366f1')}>Buscar</button>
+                  <form onSubmit={handleQuery} className="submit-form">
+                    <input placeholder="¿Cómo se conecta la autenticación con la DB?" value={queryText}
+                      onChange={e => setQueryText(e.target.value)} className="input" />
+                    <button type="submit" className="btn btn-primary">Buscar</button>
                   </form>
                   {queryResult && (
                     <pre style={{
-                      marginTop: 12, padding: 12, background: '#0f172a',
-                      borderRadius: 8, fontSize: 12, color: '#94a3b8',
-                      overflow: 'auto', maxHeight: 400, whiteSpace: 'pre-wrap'
+                      marginTop: '12px', padding: '12px', background: 'var(--bg-primary)',
+                      borderRadius: 'var(--radius-sm)', fontSize: '12px', color: 'var(--text-secondary)',
+                      overflow: 'auto', maxHeight: '400px', whiteSpace: 'pre-wrap'
                     }}>{queryResult}</pre>
                   )}
                 </div>
@@ -257,25 +224,23 @@ export default function GraphifyPage() {
 
               {/* Report */}
               {selected.report && (
-                <details style={{ marginTop: 16 }}>
-                  <summary style={{ cursor: 'pointer', color: '#94a3b8', fontSize: 14 }}>
+                <details style={{ marginTop: '16px' }}>
+                  <summary style={{ cursor: 'pointer', color: 'var(--text-secondary)', fontSize: '14px' }}>
                     📄 Informe completo (GRAPH_REPORT.md)
                   </summary>
                   <pre style={{
-                    marginTop: 8, padding: 16, background: '#0f172a',
-                    borderRadius: 10, fontSize: 12, color: '#cbd5e1',
-                    overflow: 'auto', maxHeight: 600, whiteSpace: 'pre-wrap'
+                    marginTop: '8px', padding: '16px', background: 'var(--bg-primary)',
+                    borderRadius: 'var(--radius)', fontSize: '12px', color: 'var(--text-primary)',
+                    overflow: 'auto', maxHeight: '600px', whiteSpace: 'pre-wrap'
                   }}>{selected.report}</pre>
                 </details>
               )}
             </>
           ) : (
-            <div style={{
-              textAlign: 'center', padding: '60px 20px', color: '#475569'
-            }}>
-              <div style={{ fontSize: 48, marginBottom: 16 }}>🕸️</div>
+            <div className="empty-state">
+              <div className="icon">🕸️</div>
               <p>Introduce una URL de GitHub para analizar un proyecto</p>
-              <p style={{ fontSize: 13 }}>
+              <p style={{ fontSize: '13px', marginTop: '4px' }}>
                 Graphify mapea el código en un grafo de conocimiento interactivo
               </p>
             </div>
@@ -285,9 +250,3 @@ export default function GraphifyPage() {
     </div>
   );
 }
-
-const btnStyle = (bg) => ({
-  padding: '8px 16px', borderRadius: 8, border: 'none',
-  background: bg, color: '#fff', fontWeight: 600, cursor: 'pointer',
-  fontSize: 13, textDecoration: 'none', display: 'inline-block'
-});

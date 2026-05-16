@@ -183,7 +183,7 @@ export default function ProjectDetailPage({ projectId, onBack }) {
     );
 
     return (
-        <div style={{ padding: '32px 40px', color: '#e2e8f0', maxWidth: '1100px', margin: '0 auto' }}>
+        <div style={{ color: '#e2e8f0' }}>
             {/* Image Lightbox */}
             {imagePreview && (
                 <div onClick={() => setImagePreview(null)} style={{

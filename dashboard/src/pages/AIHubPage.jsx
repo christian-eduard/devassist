@@ -12,9 +12,7 @@ export default function AIHubPage() {
     const [saving, setSaving] = useState(false);
     const [message, setMessage] = useState(null);
 
-    useEffect(() => {
-        loadConfig();
-    }, []);
+    useEffect(() => { loadConfig(); }, []);
 
     const loadConfig = async () => {
         try {
@@ -23,9 +21,7 @@ export default function AIHubPage() {
         } catch (err) {
             console.error('Failed to load AI config', err);
             setMessage({ type: 'error', text: 'Error al cargar la configuración.' });
-        } finally {
-            setLoading(false);
-        }
+        } finally { setLoading(false); }
     };
 
     const handleChange = (e) => {
@@ -39,91 +35,70 @@ export default function AIHubPage() {
         try {
             await api.updateAiConfig(config);
             setMessage({ type: 'success', text: 'Configuración guardada correctamente.' });
-            loadConfig(); // Recargar para obtener "***" en lugar de las claves en texto plano si se guardaron
+            loadConfig();
         } catch (err) {
             console.error('Failed to save AI config', err);
             setMessage({ type: 'error', text: 'Error al guardar la configuración.' });
-        } finally {
-            setSaving(false);
-        }
+        } finally { setSaving(false); }
     };
 
-    if (loading) return <div className="p-8 text-white">Cargando configuración...</div>;
+    if (loading) return <div className="loading"><div className="spinner" /></div>;
 
     return (
-        <div className="p-8 text-white max-w-2xl mx-auto">
-            <h1 className="text-3xl font-bold mb-6 text-indigo-400">AI Hub</h1>
-            <p className="text-slate-400 mb-8">
-                Configura los proveedores de Inteligencia Artificial y gestiona tus claves de API de forma segura. Las claves se almacenan en el servidor.
-            </p>
+        <div>
+            <div className="page-header">
+                <h1 className="page-title">AI Hub</h1>
+                <p className="page-subtitle">
+                    Configura los proveedores de Inteligencia Artificial y gestiona tus claves de API de forma segura.
+                </p>
+            </div>
 
             {message && (
-                <div className={`p-4 mb-6 rounded-md ${message.type === 'error' ? 'bg-red-900/50 text-red-200' : 'bg-green-900/50 text-green-200'}`}>
+                <div className="card" style={{
+                    marginBottom: '20px', padding: '14px 20px',
+                    borderColor: message.type === 'error' ? 'var(--danger)' : 'var(--success)',
+                    background: message.type === 'error' ? 'rgba(255,82,82,0.1)' : 'rgba(0,230,118,0.1)',
+                    color: message.type === 'error' ? 'var(--danger)' : 'var(--success)',
+                }}>
                     {message.text}
                 </div>
             )}
 
-            <form onSubmit={handleSave} className="space-y-6 bg-slate-900 p-6 rounded-lg border border-slate-800">
-                
+            <form onSubmit={handleSave} className="submit-section" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
                 <div>
-                    <label className="block text-sm font-medium text-slate-300 mb-2">Proveedor Activo</label>
-                    <select 
-                        name="provider" 
-                        value={config.provider} 
-                        onChange={handleChange}
-                        className="w-full bg-slate-800 border border-slate-700 rounded-md p-2.5 text-white focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
-                    >
+                    <label style={{ fontSize: '13px', color: 'var(--text-secondary)', fontWeight: '500', display: 'block', marginBottom: '8px' }}>Proveedor Activo</label>
+                    <select name="provider" value={config.provider} onChange={handleChange} className="input">
                         <option value="gemini">Google Gemini</option>
                         <option value="openrouter">OpenRouter</option>
                     </select>
                 </div>
 
                 <div>
-                    <label className="block text-sm font-medium text-slate-300 mb-2">Modelo por Defecto</label>
-                    <input 
-                        type="text" 
-                        name="defaultModel" 
-                        value={config.defaultModel} 
-                        onChange={handleChange}
-                        placeholder="Ej: gemini-1.5-pro"
-                        className="w-full bg-slate-800 border border-slate-700 rounded-md p-2.5 text-white focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
-                    />
+                    <label style={{ fontSize: '13px', color: 'var(--text-secondary)', fontWeight: '500', display: 'block', marginBottom: '8px' }}>Modelo por Defecto</label>
+                    <input type="text" name="defaultModel" value={config.defaultModel} onChange={handleChange}
+                        placeholder="Ej: gemini-1.5-pro" className="input" />
                 </div>
 
-                <hr className="border-slate-800" />
+                <hr style={{ border: 'none', borderTop: '1px solid var(--border)' }} />
 
                 <div>
-                    <label className="block text-sm font-medium text-slate-300 mb-2">Gemini API Key</label>
-                    <input 
-                        type="password" 
-                        name="geminiApiKey" 
-                        value={config.geminiApiKey} 
-                        onChange={handleChange}
+                    <label style={{ fontSize: '13px', color: 'var(--text-secondary)', fontWeight: '500', display: 'block', marginBottom: '8px' }}>Gemini API Key</label>
+                    <input type="password" name="geminiApiKey" value={config.geminiApiKey} onChange={handleChange}
                         placeholder={config.geminiApiKey === '***' ? '••••••••••••••••' : 'Ingresa tu clave de Gemini'}
-                        className="w-full bg-slate-800 border border-slate-700 rounded-md p-2.5 text-white focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 font-mono text-sm"
-                    />
-                    <p className="text-xs text-slate-500 mt-1">Deja este campo en blanco si no deseas cambiar la clave existente.</p>
+                        className="input" style={{ fontFamily: 'monospace' }} />
+                    <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '6px' }}>Deja en blanco si no deseas cambiar la clave existente.</p>
                 </div>
 
                 <div>
-                    <label className="block text-sm font-medium text-slate-300 mb-2">OpenRouter API Key</label>
-                    <input 
-                        type="password" 
-                        name="openRouterApiKey" 
-                        value={config.openRouterApiKey} 
-                        onChange={handleChange}
+                    <label style={{ fontSize: '13px', color: 'var(--text-secondary)', fontWeight: '500', display: 'block', marginBottom: '8px' }}>OpenRouter API Key</label>
+                    <input type="password" name="openRouterApiKey" value={config.openRouterApiKey} onChange={handleChange}
                         placeholder={config.openRouterApiKey === '***' ? '••••••••••••••••' : 'Ingresa tu clave de OpenRouter'}
-                        className="w-full bg-slate-800 border border-slate-700 rounded-md p-2.5 text-white focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 font-mono text-sm"
-                    />
-                    <p className="text-xs text-slate-500 mt-1">Deja este campo en blanco si no deseas cambiar la clave existente.</p>
+                        className="input" style={{ fontFamily: 'monospace' }} />
+                    <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '6px' }}>Deja en blanco si no deseas cambiar la clave existente.</p>
                 </div>
 
-                <div className="pt-4">
-                    <button 
-                        type="submit" 
-                        disabled={saving}
-                        className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2.5 px-4 rounded-md transition-colors disabled:opacity-50"
-                    >
+                <div style={{ paddingTop: '8px' }}>
+                    <button type="submit" disabled={saving} className="btn btn-primary" style={{ width: '100%', justifyContent: 'center' }}>
                         {saving ? 'Guardando...' : 'Guardar Configuración'}
                     </button>
                 </div>
