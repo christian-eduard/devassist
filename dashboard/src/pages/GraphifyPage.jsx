@@ -1,19 +1,6 @@
+// src/pages/GraphifyPage.jsx — Uses shared api.js (no more duplicate gql)
 import { useState, useEffect } from 'react';
-
-const API_BASE = import.meta.env.VITE_API_URL || '/api';
-const API_KEY = import.meta.env.VITE_API_KEY || 'devassist_prod_api_key_8Hj3kL9mQr5';
-
-async function gql(path, options = {}) {
-  const res = await fetch(`${API_BASE}${path}`, {
-    ...options,
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': API_KEY,
-      ...options.headers,
-    },
-  });
-  return res.json();
-}
+import { api } from '../lib/api';
 
 export default function GraphifyPage() {
   const [url, setUrl] = useState('');
@@ -29,7 +16,7 @@ export default function GraphifyPage() {
   async function loadAnalyses() {
     setLoading(true);
     try {
-      const data = await gql('/graphify');
+      const data = await api.getAnalyses();
       setAnalyses(data.analyses || []);
     } catch (err) { console.error(err); }
     setLoading(false);
@@ -40,10 +27,7 @@ export default function GraphifyPage() {
     if (!url.trim()) return;
     setSubmitting(true);
     try {
-      const data = await gql('/graphify', {
-        method: 'POST',
-        body: JSON.stringify({ url: url.trim() }),
-      });
+      const data = await api.submitAnalysis(url.trim());
       alert(`Análisis iniciado: ${data.analysisId}. Se procesará en background.`);
       setUrl('');
       setTimeout(loadAnalyses, 5000);
@@ -55,7 +39,7 @@ export default function GraphifyPage() {
 
   async function loadDetail(id) {
     try {
-      const data = await gql(`/graphify/${id}`);
+      const data = await api.getAnalysis(id);
       setSelected(data);
     } catch (err) { console.error(err); }
   }
@@ -64,7 +48,7 @@ export default function GraphifyPage() {
     e.preventDefault();
     if (!queryText.trim() || !selected) return;
     try {
-      const data = await gql(`/graphify/${selected.analysisId}/query?q=${encodeURIComponent(queryText)}`);
+      const data = await api.queryGraph(selected.analysisId, queryText);
       setQueryResult(data.result);
     } catch (err) {
       setQueryResult('Error: ' + err.message);

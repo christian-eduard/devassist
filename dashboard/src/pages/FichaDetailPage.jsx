@@ -1,8 +1,11 @@
 // src/pages/FichaDetailPage.jsx
 import React, { useState, useEffect } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
 import { api } from '../lib/api';
 
-export default function FichaDetailPage({ fichaId, onBack }) {
+export default function FichaDetailPage() {
+  const { id: fichaId } = useParams();
+  const navigate = useNavigate();
   const [ficha, setFicha] = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -29,7 +32,7 @@ export default function FichaDetailPage({ fichaId, onBack }) {
 
   return (
     <div className="ficha-detail">
-      <div className="back-link" onClick={onBack}>← Volver al dashboard</div>
+      <div className="back-link" onClick={() => navigate('/')}>← Volver al dashboard</div>
 
       <h1 className="page-title">{ficha.title}</h1>
       <p className="page-subtitle" style={{ marginTop: '8px' }}>
@@ -126,7 +129,7 @@ export default function FichaDetailPage({ fichaId, onBack }) {
         <button className="btn btn-danger btn-sm" onClick={async () => {
           if (confirm('¿Eliminar esta ficha?')) {
             await api.deleteFicha(fichaId);
-            onBack();
+            navigate('/');
           }
         }}>
           🗑 Eliminar

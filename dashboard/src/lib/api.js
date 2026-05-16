@@ -1,15 +1,25 @@
+// src/lib/api.js — API client with auth support
 const API_BASE = import.meta.env.VITE_API_URL || '/api';
-// Usar clave local por defecto, idealmente debería venir del servidor tras login,
-// pero por ahora para dev mantenemos un valor por defecto o la variable de entorno.
-const API_KEY = import.meta.env.VITE_API_KEY || 'devassist_prod_api_key_8Hj3kL9mQr5';
+
+function getToken() {
+    return localStorage.getItem('da_token');
+}
+
 async function request(path, options = {}) {
+    const token = getToken();
+    const headers = {
+        'Content-Type': 'application/json',
+        ...options.headers,
+    };
+
+    // Use Bearer token for dashboard auth
+    if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+    }
+
     const res = await fetch(`${API_BASE}${path}`, {
         ...options,
-        headers: {
-            'Content-Type': 'application/json',
-            'x-api-key': API_KEY,
-            ...options.headers,
-        },
+        headers,
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'API Error');
@@ -17,7 +27,34 @@ async function request(path, options = {}) {
 }
 
 export const api = {
+    // Auth (public, no token needed for login/register)
+    auth: {
+        login: (email, password) => fetch(`${API_BASE}/auth/login`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email, password }),
+        }).then(r => r.json()),
+
+        register: (name, email, password) => fetch(`${API_BASE}/auth/register`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name, email, password }),
+        }).then(r => r.json()),
+
+        me: (token) => fetch(`${API_BASE}/auth/me`, {
+            headers: { 'Authorization': `Bearer ${token}` },
+        }).then(r => r.json()),
+
+        logout: (token) => fetch(`${API_BASE}/auth/logout`, {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${token}` },
+        }).then(r => r.json()),
+    },
+
+    // Health
     health: () => request('/health'),
+
+    // Fichas
     submitUrl: (url, channel = 'app') => request('/fichas', {
         method: 'POST',
         body: JSON.stringify({ url, channel }),
@@ -26,15 +63,21 @@ export const api = {
     getFicha: (id) => request(`/fichas/${id}`),
     deleteFicha: (id) => request(`/fichas/${id}`, { method: 'DELETE' }),
     getJob: (jobId) => request(`/fichas/jobs/${jobId}`),
+
+    // Search
     search: (query, limit = 5) => request('/search', {
         method: 'POST',
         body: JSON.stringify({ query, limit }),
     }),
+
+    // AI Config
     getAiConfig: () => request('/ai/config'),
     updateAiConfig: (config) => request('/ai/config', {
         method: 'PATCH',
         body: JSON.stringify(config)
     }),
+
+    // Projects
     getProjects: () => request('/projects'),
     getProject: (id) => request(`/projects/${id}`),
     createProject: (data) => request('/projects', {
@@ -60,10 +103,21 @@ export const api = {
         method: 'POST',
         body: JSON.stringify(data)
     }),
+
+    // Agents
     initAgent: () => request('/agents/init', { method: 'POST' }),
     chatAgent: (data) => request('/agents/chat', {
         method: 'POST',
         body: JSON.stringify(data)
     }),
-    getAgentMemory: (agentId, channel = 'default') => request(`/agents/${agentId}/memory/${channel}`)
+    getAgentMemory: (agentId, channel = 'default') => request(`/agents/${agentId}/memory/${channel}`),
+
+    // Graphify
+    getAnalyses: () => request('/graphify'),
+    submitAnalysis: (url) => request('/graphify', {
+        method: 'POST',
+        body: JSON.stringify({ url }),
+    }),
+    getAnalysis: (id) => request(`/graphify/${id}`),
+    queryGraph: (id, query) => request(`/graphify/${id}/query?q=${encodeURIComponent(query)}`),
 };

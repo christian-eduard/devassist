@@ -1,10 +1,12 @@
 // src/pages/DashboardPage.jsx
 import React, { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { api } from '../lib/api';
 import SubmitForm from '../components/SubmitForm';
 import FichaCard from '../components/FichaCard';
 
-export default function DashboardPage({ onSelectFicha }) {
+export default function DashboardPage() {
+  const navigate = useNavigate();
   const [fichas, setFichas] = useState([]);
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState({ total: 0, api: true, db: true });
@@ -69,7 +71,7 @@ export default function DashboardPage({ onSelectFicha }) {
       ) : (
         <div className="card-grid">
           {fichas.map((f) => (
-            <FichaCard key={f.id} ficha={f} onClick={() => onSelectFicha(f.id)} />
+            <FichaCard key={f.id} ficha={f} onClick={() => navigate(`/fichas/${f.id}`)} />
           ))}
         </div>
       )}

@@ -1,4 +1,6 @@
+// src/pages/ProjectsPage.jsx
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { api } from '../lib/api';
 
 const STATUS_CONFIG = {
@@ -11,7 +13,8 @@ const STATUS_CONFIG = {
 
 const EMOJIS = ['🚀', '🧠', '🎯', '💡', '🔬', '🛡️', '📊', '🤖', '🌐', '⚡', '🔗', '📦', '🎨', '🏗️', '📡', '🛸'];
 
-export default function ProjectsPage({ onSelectProject }) {
+export default function ProjectsPage() {
+    const navigate = useNavigate();
     const [projects, setProjects] = useState([]);
     const [loading, setLoading] = useState(true);
     const [showCreate, setShowCreate] = useState(false);
@@ -95,40 +98,34 @@ export default function ProjectsPage({ onSelectProject }) {
                 <form onSubmit={handleCreate} className="submit-section" style={{ marginBottom: '28px' }}>
                     <div style={{ display: 'flex', gap: '16px', marginBottom: '16px' }}>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                            <label style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: '500' }}>Icono</label>
+                            <label className="field-label">Icono</label>
                             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', maxWidth: '180px' }}>
                                 {EMOJIS.map(e => (
-                                    <button key={e} type="button" onClick={() => setForm(f => ({ ...f, cover_emoji: e }))} style={{
-                                        background: form.cover_emoji === e ? 'var(--accent-glow)' : 'var(--bg-card)',
-                                        border: form.cover_emoji === e ? '1px solid var(--accent)' : '1px solid var(--border)',
-                                        borderRadius: '8px', padding: '4px 6px', fontSize: '18px', cursor: 'pointer',
-                                    }}>{e}</button>
+                                    <button key={e} type="button" onClick={() => setForm(f => ({ ...f, cover_emoji: e }))}
+                                        className={`emoji-btn ${form.cover_emoji === e ? 'active' : ''}`}>{e}</button>
                                 ))}
                             </div>
                         </div>
                         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '12px' }}>
                             <div>
-                                <label style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: '500', display: 'block', marginBottom: '6px' }}>Nombre del proyecto</label>
+                                <label className="field-label">Nombre del proyecto</label>
                                 <input className="input" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
                                     placeholder="Ej: Drones Aeroportuarios" />
                             </div>
                             <div>
-                                <label style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: '500', display: 'block', marginBottom: '6px' }}>Descripción</label>
+                                <label className="field-label">Descripción</label>
                                 <textarea className="input" value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
-                                    placeholder="¿De qué va este proyecto?" rows={2}
-                                    style={{ resize: 'vertical' }} />
+                                    placeholder="¿De qué va este proyecto?" rows={2} style={{ resize: 'vertical' }} />
                             </div>
                             <div>
-                                <label style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: '500', display: 'block', marginBottom: '6px' }}>Tags (separados por coma)</label>
+                                <label className="field-label">Tags (separados por coma)</label>
                                 <input className="input" value={form.tags} onChange={e => setForm(f => ({ ...f, tags: e.target.value }))}
                                     placeholder="drones, seguridad, IA" />
                             </div>
                         </div>
                     </div>
                     <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
-                        <button type="button" onClick={() => setShowCreate(false)} className="btn" style={{
-                            background: 'var(--bg-card)', color: 'var(--text-secondary)', border: '1px solid var(--border)',
-                        }}>Cancelar</button>
+                        <button type="button" onClick={() => setShowCreate(false)} className="btn btn-ghost">Cancelar</button>
                         <button type="submit" disabled={submitting || !form.name} className="btn btn-primary">
                             {submitting ? 'Creando...' : 'Crear Proyecto'}
                         </button>
@@ -137,14 +134,10 @@ export default function ProjectsPage({ onSelectProject }) {
             )}
 
             {/* Filters */}
-            <div style={{ display: 'flex', gap: '8px', marginBottom: '24px', flexWrap: 'wrap' }}>
+            <div className="filter-bar">
                 {['all', ...Object.keys(STATUS_CONFIG)].map(s => (
-                    <button key={s} onClick={() => setFilter(s)} className="btn btn-sm" style={{
-                        background: filter === s ? 'var(--accent-glow)' : 'var(--bg-card)',
-                        color: filter === s ? 'var(--accent)' : 'var(--text-secondary)',
-                        border: filter === s ? '1px solid rgba(108,92,231,0.3)' : '1px solid var(--border)',
-                        borderRadius: '20px',
-                    }}>
+                    <button key={s} onClick={() => setFilter(s)}
+                        className={`btn btn-sm btn-pill ${filter === s ? 'active' : ''}`}>
                         {s === 'all' ? 'Todos' : STATUS_CONFIG[s].label}
                     </button>
                 ))}
@@ -164,7 +157,7 @@ export default function ProjectsPage({ onSelectProject }) {
                         const sc = STATUS_CONFIG[p.status] || STATUS_CONFIG.idea;
                         const tags = Array.isArray(p.tags) ? p.tags : [];
                         return (
-                            <div key={p.id} className="card ficha-card" onClick={() => onSelectProject?.(p.id)}>
+                            <div key={p.id} className="card ficha-card" onClick={() => navigate(`/projects/${p.id}`)}>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '12px' }}>
                                     <div style={{ fontSize: '32px' }}>{p.cover_emoji || '🚀'}</div>
                                     <span className="ficha-tag" style={{ background: sc.bg, color: sc.color }}>
@@ -186,10 +179,10 @@ export default function ProjectsPage({ onSelectProject }) {
                                     </div>
                                 )}
 
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid var(--border)', paddingTop: '12px', marginTop: '12px' }}>
-                                    <div style={{ display: 'flex', gap: '16px' }}>
-                                        <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>💡 {p.idea_count || 0} ideas</span>
-                                        <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>📄 {p.ficha_count || 0} fichas</span>
+                                <div className="card-footer">
+                                    <div className="card-footer-stats">
+                                        <span>💡 {p.idea_count || 0} ideas</span>
+                                        <span>📄 {p.ficha_count || 0} fichas</span>
                                     </div>
                                     <button onClick={(e) => handleDelete(p.id, e)} className="btn btn-sm btn-danger"
                                         style={{ padding: '4px 8px', fontSize: '14px' }}>

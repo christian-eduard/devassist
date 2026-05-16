@@ -1,58 +1,52 @@
-// src/components/Sidebar.jsx
+// src/components/Sidebar.jsx — Navigation with React Router NavLinks
 import React from 'react';
+import { NavLink } from 'react-router-dom';
+import { useAuth } from '../lib/AuthContext';
 
-export default function Sidebar({ currentPage, onNavigate }) {
-  return (
-    <aside className="sidebar">
-      <div className="sidebar-logo">
-        NoahPro<span>.studio</span>
-      </div>
+const NAV_ITEMS = [
+    { to: '/', icon: '📊', label: 'Knowledge Vault' },
+    { to: '/projects', icon: '📁', label: 'Proyectos' },
+    { to: '/search', icon: '🔍', label: 'Búsqueda RAG' },
+    { to: '/aihub', icon: '🤖', label: 'AI Hub' },
+    { to: '/graphify', icon: '⚡', label: 'Graphify' },
+];
 
-      <button
-        className={`nav-item ${currentPage === 'dashboard' ? 'active' : ''}`}
-        onClick={() => onNavigate('dashboard')}
-      >
-        <span className="nav-icon">📊</span>
-        Knowledge Vault
-      </button>
+export default function Sidebar() {
+    const { user, logout } = useAuth();
 
-      <button
-        className={`nav-item ${currentPage === 'projects' ? 'active' : ''}`}
-        onClick={() => onNavigate('projects')}
-      >
-        <span className="nav-icon">📁</span>
-        Proyectos
-      </button>
+    return (
+        <aside className="sidebar">
+            <div className="sidebar-logo">
+                NoahPro<span>.studio</span>
+            </div>
 
-      <button
-        className={`nav-item ${currentPage === 'search' ? 'active' : ''}`}
-        onClick={() => onNavigate('search')}
-      >
-        <span className="nav-icon">🔍</span>
-        Búsqueda RAG
-      </button>
+            {NAV_ITEMS.map(item => (
+                <NavLink
+                    key={item.to}
+                    to={item.to}
+                    end={item.to === '/'}
+                    className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
+                >
+                    <span className="nav-icon">{item.icon}</span>
+                    {item.label}
+                </NavLink>
+            ))}
 
-      <button
-        className={`nav-item ${currentPage === 'aihub' ? 'active' : ''}`}
-        onClick={() => onNavigate('aihub')}
-      >
-        <span className="nav-icon">🤖</span>
-        AI Hub
-      </button>
+            <div style={{ flex: 1 }} />
 
-      <button
-        className={`nav-item ${currentPage === 'graphify' ? 'active' : ''}`}
-        onClick={() => onNavigate('graphify')}
-      >
-        <span className="nav-icon">⚡</span>
-        Graphify
-      </button>
+            {user && (
+                <div className="sidebar-user">
+                    <div className="sidebar-user-info">
+                        <span className="sidebar-user-name">{user.name}</span>
+                        <span className="sidebar-user-plan">{user.plan}</span>
+                    </div>
+                    <button onClick={logout} className="sidebar-logout" title="Cerrar sesión">⏻</button>
+                </div>
+            )}
 
-      <div style={{ flex: 1 }} />
-
-      <div style={{ padding: '12px', fontSize: '11px', color: 'var(--text-muted)' }}>
-        DevAssist Cloud v1.0
-      </div>
-    </aside>
-  );
+            <div className="sidebar-version">
+                DevAssist Cloud v1.0
+            </div>
+        </aside>
+    );
 }
