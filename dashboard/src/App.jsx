@@ -6,16 +6,19 @@ import SearchPage from './pages/SearchPage';
 import FichaDetailPage from './pages/FichaDetailPage';
 import AIHubPage from './pages/AIHubPage';
 import ProjectsPage from './pages/ProjectsPage';
+import ProjectDetailPage from './pages/ProjectDetailPage';
 import GraphifyPage from './pages/GraphifyPage';
 import TessChatWidget from './components/TessChatWidget';
 
 export default function App() {
   const [currentPage, setCurrentPage] = useState('dashboard');
   const [selectedFichaId, setSelectedFichaId] = useState(null);
+  const [selectedProjectId, setSelectedProjectId] = useState(null);
 
   function navigate(page, fichaId = null) {
     setCurrentPage(page);
     setSelectedFichaId(fichaId);
+    if (page !== 'projectDetail') setSelectedProjectId(null);
   }
 
   let content;
@@ -26,7 +29,9 @@ export default function App() {
   } else if (currentPage === 'aihub') {
     content = <AIHubPage />;
   } else if (currentPage === 'projects') {
-    content = <ProjectsPage />;
+    content = <ProjectsPage onSelectProject={(id) => { setSelectedProjectId(id); setCurrentPage('projectDetail'); }} />;
+  } else if (currentPage === 'projectDetail' && selectedProjectId) {
+    content = <ProjectDetailPage projectId={selectedProjectId} onBack={() => navigate('projects')} />;
   } else if (currentPage === 'graphify') {
     content = <GraphifyPage />;
   } else {

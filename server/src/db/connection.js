@@ -124,6 +124,40 @@ async function initDatabase() {
             )
         `);
 
+        // ── Projects Hub migrations ──
+        await client.query(`ALTER TABLE projects ADD COLUMN IF NOT EXISTS description TEXT`);
+        await client.query(`ALTER TABLE projects ADD COLUMN IF NOT EXISTS status VARCHAR(20) DEFAULT 'idea'`);
+        await client.query(`ALTER TABLE projects ADD COLUMN IF NOT EXISTS priority INTEGER DEFAULT 3`);
+        await client.query(`ALTER TABLE projects ADD COLUMN IF NOT EXISTS tags JSONB DEFAULT '[]'`);
+        await client.query(`ALTER TABLE projects ADD COLUMN IF NOT EXISTS cover_emoji VARCHAR(10) DEFAULT '🚀'`);
+
+        await client.query(`
+            CREATE TABLE IF NOT EXISTS project_ideas (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+                content TEXT NOT NULL,
+                source VARCHAR(50) DEFAULT 'manual',
+                author VARCHAR(100),
+                title VARCHAR(200),
+                image_url TEXT,
+                image_analysis TEXT,
+                created_at TIMESTAMPTZ DEFAULT NOW()
+            )
+        `);
+        await client.query(`ALTER TABLE project_ideas ADD COLUMN IF NOT EXISTS image_url TEXT`);
+        await client.query(`ALTER TABLE project_ideas ADD COLUMN IF NOT EXISTS image_analysis TEXT`);
+        await client.query(`ALTER TABLE project_ideas ADD COLUMN IF NOT EXISTS title VARCHAR(200)`);
+        await client.query(`ALTER TABLE project_ideas ADD COLUMN IF NOT EXISTS generated_images JSONB DEFAULT '[]'`);
+
+        await client.query(`
+            CREATE TABLE IF NOT EXISTS project_fichas (
+                project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+                ficha_id TEXT NOT NULL REFERENCES fichas(id) ON DELETE CASCADE,
+                linked_at TIMESTAMPTZ DEFAULT NOW(),
+                PRIMARY KEY (project_id, ficha_id)
+            )
+        `);
+
         logger.info('Database initialized successfully');
     } catch (err) {
         logger.error({ err }, 'Failed to initialize database');

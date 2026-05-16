@@ -42,6 +42,24 @@ export const api = {
         body: JSON.stringify(data)
     }),
     deleteProject: (id) => request(`/projects/${id}`, { method: 'DELETE' }),
+    updateProject: (id, data) => request(`/projects/${id}`, {
+        method: 'PUT',
+        body: JSON.stringify(data)
+    }),
+    addIdea: (projectId, data) => request(`/projects/${projectId}/ideas`, {
+        method: 'POST',
+        body: JSON.stringify(data)
+    }),
+    deleteIdea: (projectId, ideaId) => request(`/projects/${projectId}/ideas/${ideaId}`, { method: 'DELETE' }),
+    linkFicha: (projectId, fichaId) => request(`/projects/${projectId}/fichas`, {
+        method: 'POST',
+        body: JSON.stringify({ ficha_id: fichaId })
+    }),
+    unlinkFicha: (projectId, fichaId) => request(`/projects/${projectId}/fichas/${fichaId}`, { method: 'DELETE' }),
+    tessAction: (data) => request('/projects/tess-action', {
+        method: 'POST',
+        body: JSON.stringify(data)
+    }),
     initAgent: () => request('/agents/init', { method: 'POST' }),
     chatAgent: (data) => request('/agents/chat', {
         method: 'POST',

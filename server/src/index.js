@@ -25,7 +25,7 @@ app.use(helmet({
     crossOriginEmbedderPolicy: false,
 }));
 app.use(cors({ origin: config.isDev ? '*' : ['https://noahpro.studio', 'https://www.noahpro.studio', 'https://api.noahpro.studio'] }));
-app.use(express.json({ limit: '10mb' }));
+app.use(express.json({ limit: '50mb' }));
 
 // Serve uploaded files (videos + graphify reports) as static files
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
