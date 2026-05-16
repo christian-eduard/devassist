@@ -416,6 +416,36 @@ export default function ProjectDetailPage() {
                             ))}
                         </div>
                     )}
+
+                    {/* GitHub Repo */}
+                    {project.path && project.path.includes('github.com') && (
+                        <div style={{ marginTop: '20px' }}>
+                            <h2 style={{ fontSize: '16px', fontWeight: '600', margin: '0 0 12px 0' }}>📂 Repositorio GitHub</h2>
+                            <div className="card" style={{ padding: '16px', borderLeft: '3px solid #a78bfa' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
+                                    <span style={{ fontSize: '20px' }}>🔗</span>
+                                    <a href={project.path} target="_blank" rel="noopener noreferrer"
+                                        style={{ color: '#a78bfa', fontWeight: 600, fontSize: '14px', textDecoration: 'none' }}>
+                                        {project.path.replace('https://github.com/', '')}
+                                    </a>
+                                </div>
+                                {project.stack && (
+                                    <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                                        <span className="ficha-tag" style={{
+                                            background: 'rgba(96,165,250,0.15)', color: '#60a5fa', fontSize: '11px',
+                                        }}>
+                                            {project.stack}
+                                        </span>
+                                    </div>
+                                )}
+                                <a href={project.path} target="_blank" rel="noopener noreferrer"
+                                    className="btn btn-sm btn-ghost"
+                                    style={{ marginTop: '10px', fontSize: '12px', display: 'inline-block', textDecoration: 'none' }}>
+                                    Abrir en GitHub →
+                                </a>
+                            </div>
+                        </div>
+                    )}
                 </div>
             </div>
         </div>
