@@ -67,7 +67,10 @@ router.post('/tess-action', async (req, res) => {
             let imageMimeToProcess = req.body.image_mime || 'image/jpeg';
             let extToSave = 'jpg';
 
-            if (req.body.image_url && req.body.image_url.startsWith('http')) {
+            if (req.body.image_base64) {
+                imageBufferToProcess = Buffer.from(req.body.image_base64, 'base64');
+                extToSave = imageMimeToProcess.includes('png') ? 'png' : 'jpg';
+            } else if (req.body.image_url && req.body.image_url.startsWith('http')) {
                 try {
                     let fetchUrl = req.body.image_url;
                     // If URL is from internal Docker network, rewrite to localhost for host fetch
@@ -86,9 +89,6 @@ router.post('/tess-action', async (req, res) => {
                     logger.error({ err: fetchErr.message }, 'Failed to fetch image from Tess URL');
                     // We keep imageUrl as the original HTTP URL fallback
                 }
-            } else if (req.body.image_base64) {
-                imageBufferToProcess = Buffer.from(req.body.image_base64, 'base64');
-                extToSave = imageMimeToProcess.includes('png') ? 'png' : 'jpg';
             }
 
             if (imageBufferToProcess) {
